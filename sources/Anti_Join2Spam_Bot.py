@@ -22,7 +22,7 @@ import re
 import sys
 import signal
 import TSjson
-import datetime
+from datetime import datetime, timedelta
 from time import strptime, mktime
 from threading import Thread, Lock
 from Constants import CONST, TEXT
@@ -171,8 +171,13 @@ def msg_nocmd(bot, update):
     if text != None:
         # If user not yet register, add to users file, else, get his number of published messages
         if not user_in_json(user_id):
+            # Register user and set "Num_messages" and "Join_date" to allow publish URLs
             register_new_user(user_id, user_name, msg_date)
-            num_published_messages = 0
+            user_data = get_user(user_id)
+            user_data['Num_messages'] = num_messages_for_allow_urls
+            user_data['Join_date'] = datetime(1971, 1, 1).strftime("%Y-%m-%d %H:%M:%S")
+            update_user(user_data)
+            num_published_messages = num_messages_for_allow_urls + 1
         else:
             user_data = get_user(user_id)
             user_data['Num_messages'] = user_data['Num_messages'] + 1
