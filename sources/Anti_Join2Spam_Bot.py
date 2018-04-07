@@ -12,7 +12,7 @@ Creation date:
 Last modified date:
     07/04/2018
 Version:
-    1.0.0
+    1.0.1
 '''
 
 ####################################################################################################
@@ -142,9 +142,9 @@ def get_admins_usernames_in_string(bot, chat_id):
     group_admins = bot.get_chat_administrators(chat_id)
     for admin in group_admins:
         if admins == "":
-            admins = admin.user.username
+            admins = "@{}".format(admin.user.username)
         else:
-            admins = "{} {}".format(admins, admin.user.username)
+            admins = "{}\n@{}".format(admins, admin.user.username)
     return admins
 
 ####################################################################################################
@@ -207,8 +207,8 @@ def msg_nocmd(bot, update):
                         if call_admins_when_spam_detected:
                             admins = get_admins_usernames_in_string(bot, chat_id)
                             if admins:
-                                bot_message = "{}{}".format(bot_message, \
-                                    TEXT[lang]['CALLING_ADMINS'], admins)
+                                bot_message_2 = TEXT[lang]['CALLING_ADMINS'].format(admins)
+                                bot_message = "{}{}".format(bot_message, bot_message_2)
                         bot.send_message(chat_id, bot_message)
         # Truncate the message text to 500 characters
         if len(text) > 50:
@@ -322,8 +322,8 @@ def cmd_call_admins(bot, update):
     '''Command /call_admins message handler'''
     chat_id = update.message.chat_id
     admins = get_admins_usernames_in_string(bot, chat_id)
-    bot_message = TEXT[lang]['CALLING_ADMINS']
-    bot_message = "{}{}".format(bot_message, admins)
+    bot_msg = TEXT[lang]['CALLING_ADMINS'].format(admins)
+    bot.send_message(chat_id, bot_msg)
 
 
 def cmd_call_when_spam(bot, update, args):
@@ -335,14 +335,16 @@ def cmd_call_when_spam(bot, update, args):
         if len(args) == 1:
             value_provided = args[0]
             if value_provided == 'enable' or value_provided == 'disable':
-                if value_provided != call_admins_when_spam_detected:
-                    if value_provided == 'enable':
-                        bot_msg = TEXT[lang]['CALL_WHEN_SPAM_ENABLE']
-                    else:
-                        bot_msg = TEXT[lang]['CALL_WHEN_SPAM_DISABLE']
-                else:
-                    if value_provided == 'enable':
+                if value_provided == 'enable':
+                    if call_admins_when_spam_detected == True:
                         bot_msg = TEXT[lang]['CALL_WHEN_SPAM_ALREADY_ENABLE']
+                    else:
+                        bot_msg = TEXT[lang]['CALL_WHEN_SPAM_ENABLE']
+                        call_admins_when_spam_detected = True
+                else:
+                    if call_admins_when_spam_detected == True:
+                        bot_msg = TEXT[lang]['CALL_WHEN_SPAM_DISABLE']
+                        call_admins_when_spam_detected = False
                     else:
                         bot_msg = TEXT[lang]['CALL_WHEN_SPAM_ALREADY_DISABLE']
             else:
