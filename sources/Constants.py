@@ -21,7 +21,7 @@ CONST = {
     'TOKEN' : 'XXXXXXXXX:XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX', # Bot Token (get it from @BotFather)
     'F_USR' : './data/users.json', # Users JSON file name
     'F_MSG' : './data/messages.json', # Messages JSON file name
-    'INIT_LANG' : 'ES', # Initial language at Bot start
+    'INIT_LANG' : 'EN', # Initial language at Bot start
     'INIT_ENABLE' : True, # Initial enable/disable status at Bot start
     'INIT_TIME_ALLOW_URLS' : 24, # Initial hours until allow a user to publish URLs in messages
     'INIT_MIN_MSG_ALLOW_URLS' : 10, # Initial number of users messages until allow publish URLs

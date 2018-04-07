@@ -211,8 +211,8 @@ def msg_nocmd(bot, update):
                                     TEXT[lang]['CALLING_ADMINS'], admins)
                         bot.send_message(chat_id, bot_message)
         # Truncate the message text to 500 characters
-        if len(text) > 500:
-            text = text[0:500]
+        if len(text) > 50:
+            text = text[0:50]
             text = "{}...".format(text)
         # Add the message to messages file
         add_new_message(chat_id, msg_id, user_id, user_name, text, msg_date)
