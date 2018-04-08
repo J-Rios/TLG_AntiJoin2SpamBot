@@ -12,7 +12,7 @@ Creation date:
 Last modified date:
     08/04/2018
 Version:
-    1.1.0
+    1.1.1
 '''
 
 ####################################################################################################
@@ -80,7 +80,7 @@ def initialize_resources():
     global files_config_list
     # Create data directory if it does not exists
     if not path.exists(CONST['DATA_DIR']):
-            makedirs(CONST['DATA_DIR'])
+        makedirs(CONST['DATA_DIR'])
     else:
         # If directry data exists, check all subdirectories names (chats ID)
         files = listdir(CONST['DATA_DIR'])
@@ -350,15 +350,16 @@ def msg_nocmd(bot, update):
                     (num_published_messages < num_messages_for_allow_urls)):
                         # Delete user message and notify what happen
                         bot.delete_message(chat_id=chat_id, message_id=msg_id)
-                        bot_message_0 = TEXT[lang]['MSG_SPAM_DETECTED_0'].format(user_name)
-                        bot_message_1 = TEXT[lang]['MSG_SPAM_DETECTED_1'].format( \
+                        bot_msg_head = TEXT[lang]['MSG_SPAM_HEADER']
+                        bot_msg_0 = TEXT[lang]['MSG_SPAM_DETECTED_0'].format(user_name)
+                        bot_msg_1 = TEXT[lang]['MSG_SPAM_DETECTED_1'].format( \
                             time_for_allow_urls_h, num_messages_for_allow_urls)
-                        bot_message = "{}{}".format(bot_message_0, bot_message_1)
+                        bot_message = "{}{}{}".format(bot_msg_head, bot_msg_0, bot_msg_1)
                         if call_admins_when_spam_detected:
                             admins = get_admins_usernames_in_string(bot, chat_id)
                             if admins:
-                                bot_message_2 = TEXT[lang]['CALLING_ADMINS'].format(admins)
-                                bot_message = "{}{}".format(bot_message, bot_message_2)
+                                bot_msg_2 = TEXT[lang]['CALLING_ADMINS'].format(admins)
+                                bot_message = "{}{}".format(bot_message, bot_msg_2)
                         bot.send_message(chat_id, bot_message)
         # Truncate the message text to 500 characters
         if len(text) > 50:
