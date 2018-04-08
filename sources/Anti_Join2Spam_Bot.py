@@ -10,9 +10,9 @@ Author:
 Creation date:
     04/04/2018
 Last modified date:
-    07/04/2018
+    08/04/2018
 Version:
-    1.0.1
+    1.1.0
 '''
 
 ####################################################################################################
@@ -22,6 +22,7 @@ import re
 import sys
 import signal
 import TSjson
+from os import path, makedirs, listdir
 from datetime import datetime, timedelta
 from time import strptime, mktime
 from threading import Thread, Lock
@@ -40,8 +41,9 @@ enable = CONST['INIT_ENABLE']
 time_for_allow_urls_h = CONST['INIT_TIME_ALLOW_URLS']
 num_messages_for_allow_urls = CONST['INIT_MIN_MSG_ALLOW_URLS']
 call_admins_when_spam_detected = CONST['INIT_CALL_ADMINS_WHEN_SPAM']
-fjson_usr = TSjson.TSjson(CONST['F_USR'])
-fjson_msg = TSjson.TSjson(CONST['F_MSG'])
+files_users_list = []
+files_messages_list = []
+files_config_list = []
 
 ####################################################################################################
 
@@ -49,9 +51,11 @@ fjson_msg = TSjson.TSjson(CONST['F_MSG'])
 def signal_handler(signal, frame):
     '''Termination signals (SIGINT, SIGTERM) handler for program process'''
     print('Closing the program, safe way...')
-    # Acquire messages and users files mutex to ensure not read/write operation on it
-    fjson_msg.lock.acquire()
-    fjson_usr.lock.acquire()
+    # Acquire all messages and users files mutex to ensure not read/write operation on them
+    for chat_users_file in files_users_list:
+        chat_users_file['File'].lock.acquire()
+    for chat_messages_file in files_messages_list:
+        chat_messages_file['File'].lock.acquire()
     # Close the program
     sys.exit(0)
 
@@ -62,10 +66,143 @@ signal.signal(signal.SIGINT, signal_handler)  # SIGINT (Ctrl+C) to signal_handle
 
 ####################################################################################################
 
-### Specific json files read/write reputation functions ###
+### General functions ###
 
-def register_new_user(user_id, user_name, join_date):
+def initialize_resources():
+    '''Initialize resources by populating files list and configs with chats found files'''
+    global lang
+    global enable
+    global time_for_allow_urls_h
+    global num_messages_for_allow_urls
+    global call_admins_when_spam_detected
+    global files_users_list
+    global files_messages_list
+    global files_config_list
+    # Create data directory if it does not exists
+    if not path.exists(CONST['DATA_DIR']):
+            makedirs(CONST['DATA_DIR'])
+    else:
+        # If directry data exists, check all subdirectories names (chats ID)
+        files = listdir(CONST['DATA_DIR'])
+        if files:
+            for f in files:
+                # Populate users files list
+                users_file = OrderedDict([('ID', None), ('File', None)])
+                users_file['ID'] = f
+                users_file['File'] = get_chat_users_file(f)
+                files_users_list.append(users_file)
+                # Populate messages files list
+                messages_file = OrderedDict([('ID', None), ('File', None)])
+                messages_file['ID'] = f
+                messages_file['File'] = get_chat_messages_file(f)
+                files_messages_list.append(messages_file)
+                # Restore last configurations properties of the chat
+                config_file = OrderedDict([('ID', None), ('File', None)])
+                config_file['ID'] = f
+                config_file['File'] = get_chat_config_file(f)
+                config_data = config_file['File'].read()
+                if config_data:
+                    lang = config_data['Language']
+                    enable = config_data['Antispam']
+                    time_for_allow_urls_h = config_data['Time_for_allow_urls_h']
+                    num_messages_for_allow_urls = config_data['Num_messages_for_allow_urls']
+                    call_admins_when_spam_detected = config_data['Call_admins_when_spam_detected']
+                files_config_list.append(config_file)
+
+
+def get_chat_users_file(chat_id):
+    '''Determine chat users file from the list by ID. Get the file if exists or create it if not'''
+    file = OrderedDict([('ID', chat_id), ('File', None)])
+    found = False
+    if files_users_list:
+        for chat_file in files_users_list:
+            if chat_file['ID'] == chat_id:
+                file = chat_file
+                found = True
+                break
+        if not found:
+            chat_users_file_name = '{}/{}/{}'.format(CONST['DATA_DIR'], chat_id, CONST['F_USERS'])
+            file['ID'] = chat_id
+            file['File'] = TSjson.TSjson(chat_users_file_name)
+            files_users_list.append(file)
+    else:
+        chat_users_file_name = '{}/{}/{}'.format(CONST['DATA_DIR'], chat_id, CONST['F_USERS'])
+        file['ID'] = chat_id
+        file['File'] = TSjson.TSjson(chat_users_file_name)
+        files_users_list.append(file)
+    return file['File']
+
+
+def get_chat_messages_file(chat_id):
+    '''Determine chat msgs file from the list by ID. Get the file if exists or create it if not'''
+    file = OrderedDict([('ID', chat_id), ('File', None)])
+    file = {'ID': chat_id, 1: 7.8}
+    found = False
+    if files_messages_list:
+        for chat_file in files_messages_list:
+            if chat_file['ID'] == chat_id:
+                file = chat_file
+                found = True
+                break
+        if not found:
+            chat_messages_file_name = '{}/{}/{}'.format(CONST['DATA_DIR'], chat_id, CONST['F_MSG'])
+            file['File'] = TSjson.TSjson(chat_messages_file_name)
+            files_messages_list.append(file)
+    else:
+        chat_messages_file_name = '{}/{}/{}'.format(CONST['DATA_DIR'], chat_id, CONST['F_MSG'])
+        file['File'] = TSjson.TSjson(chat_messages_file_name)
+        files_messages_list.append(file)
+    return file['File']
+
+
+def get_chat_config_file(chat_id):
+    '''Determine chat config file from the list by ID. Get the file if exists or create it if not'''
+    file = OrderedDict([('ID', chat_id), ('File', None)])
+    found = False
+    if files_config_list:
+        for chat_file in files_config_list:
+            if chat_file['ID'] == chat_id:
+                file = chat_file
+                found = True
+                break
+        if not found:
+            chat_config_file_name = '{}/{}/{}'.format(CONST['DATA_DIR'], chat_id, CONST['F_CONF'])
+            file['ID'] = chat_id
+            file['File'] = TSjson.TSjson(chat_config_file_name)
+            files_config_list.append(file)
+    else:
+        chat_config_file_name = '{}/{}/{}'.format(CONST['DATA_DIR'], chat_id, CONST['F_CONF'])
+        file['ID'] = chat_id
+        file['File'] = TSjson.TSjson(chat_config_file_name)
+        files_config_list.append(file)
+    return file['File']
+
+
+def save_config_properties(chat_id):
+    '''Store actual chat configuration in file'''
+    fjson_config = get_chat_config_file(chat_id)
+    config_data = fjson_config.read()
+    if not config_data:
+        config_data = OrderedDict( \
+        [ \
+            ('Language', lang), \
+            ('Antispam', enable), \
+            ('Time_for_allow_urls_h', time_for_allow_urls_h), \
+            ('Num_messages_for_allow_urls', num_messages_for_allow_urls), \
+            ('Call_admins_when_spam_detected', call_admins_when_spam_detected) \
+        ])
+    else:
+        config_data['Language'] = lang
+        config_data['Antispam'] = enable
+        config_data['Time_for_allow_urls_h'] = time_for_allow_urls_h
+        config_data['Num_messages_for_allow_urls'] = num_messages_for_allow_urls
+        config_data['Call_admins_when_spam_detected'] = call_admins_when_spam_detected
+    fjson_config.write(config_data)
+
+
+def register_new_user(chat_id, user_id, user_name, join_date):
     '''Add new member to the users file'''
+    # Default new user data
     user_data = OrderedDict( \
     [ \
         ('User_id', user_id), \
@@ -73,11 +210,14 @@ def register_new_user(user_id, user_name, join_date):
         ('Join_date', join_date), \
         ('Num_messages', 0) \
     ])
+    # Get the chat users file and write the user data to it
+    fjson_usr = get_chat_users_file(chat_id)
     fjson_usr.write_content(user_data)
 
 
 def add_new_message(chat_id, msg_id, user_id, user_name, text, msg_date):
     '''Add new message to the messages file'''
+    # Default new message data
     msg_data = OrderedDict( \
     [ \
         ('Chat_id', chat_id), \
@@ -87,11 +227,14 @@ def add_new_message(chat_id, msg_id, user_id, user_name, text, msg_date):
         ('Text', text), \
         ('Date', msg_date) \
     ])
+    # Get the chat messages file and write the messages data to it
+    fjson_msg = get_chat_messages_file(chat_id)
     fjson_msg.write_content(msg_data)
 
 
-def get_user(user_id):
+def get_user(chat_id, user_id):
     '''Get user data by member ID'''
+    fjson_usr = get_chat_users_file(chat_id)
     users_data = fjson_usr.read_content()
     for usr in users_data:
         if user_id == usr['User_id']:
@@ -101,6 +244,7 @@ def get_user(user_id):
 
 def get_message(chat_id, msg_id):
     '''Get message data of a chat by ID'''
+    fjson_msg = get_chat_messages_file(chat_id)
     messages_data = fjson_msg.read_content()
     for msg in messages_data:
         if chat_id == msg['Chat_id']:
@@ -109,8 +253,9 @@ def get_message(chat_id, msg_id):
     return None
 
 
-def user_in_json(user_id):
+def user_in_json(chat_id, user_id):
     '''Check if a user is in the file by his ID'''
+    fjson_usr = get_chat_users_file(chat_id)
     users_data = fjson_usr.read_content()
     for usr in users_data:
         if user_id == usr['User_id']:
@@ -118,10 +263,11 @@ def user_in_json(user_id):
     return False
 
 
-def update_user(new_user_data):
+def update_user(chat_id, new_user_data):
     '''Update an existing user from the JSON file. If the user does not exists, add to it'''
+    fjson_usr = get_chat_users_file(chat_id)
     user_id = new_user_data['User_id']
-    if user_in_json(user_id):
+    if user_in_json(chat_id, user_id):
         fjson_usr.update(new_user_data, 'User_id')
     else:
         fjson_usr.write_content(new_user_data)
@@ -129,7 +275,10 @@ def update_user(new_user_data):
 
 def user_is_admin(bot, user_id, chat_id):
     '''Check if the specified user is an Administrator of a group given by IDs'''
-    group_admins = bot.get_chat_administrators(chat_id)
+    try:
+        group_admins = bot.get_chat_administrators(chat_id)
+    except:
+        return None
     for admin in group_admins:
         if user_id == admin.user.id:
             return True
@@ -153,10 +302,11 @@ def get_admins_usernames_in_string(bot, chat_id):
 
 def new_user(bot, update):
     '''New member join the group event handler'''
+    chat_id = update.message.chat_id
     user_id = update.message.from_user.id
     user_name = update.message.from_user.name
     join_date = (update.message.date).now().strftime("%Y-%m-%d %H:%M:%S")
-    register_new_user(user_id, user_name, join_date)
+    register_new_user(chat_id, user_id, user_name, join_date)
 
 
 def msg_nocmd(bot, update):
@@ -170,18 +320,18 @@ def msg_nocmd(bot, update):
     # If it is a text message
     if text != None:
         # If user not yet register, add to users file, else, get his number of published messages
-        if not user_in_json(user_id):
+        if not user_in_json(chat_id, user_id):
             # Register user and set "Num_messages" and "Join_date" to allow publish URLs
-            register_new_user(user_id, user_name, msg_date)
-            user_data = get_user(user_id)
+            register_new_user(chat_id, user_id, user_name, msg_date)
+            user_data = get_user(chat_id, user_id)
             user_data['Num_messages'] = num_messages_for_allow_urls
             user_data['Join_date'] = datetime(1971, 1, 1).strftime("%Y-%m-%d %H:%M:%S")
-            update_user(user_data)
+            update_user(chat_id, user_data)
             num_published_messages = num_messages_for_allow_urls + 1
         else:
-            user_data = get_user(user_id)
+            user_data = get_user(chat_id, user_id)
             user_data['Num_messages'] = user_data['Num_messages'] + 1
-            update_user(user_data)
+            update_user(chat_id, user_data)
             num_published_messages = user_data['Num_messages']
         # If the Bot Anti-Spam is enabled
         if enable:
@@ -243,13 +393,15 @@ def cmd_language(bot, update, args):
     global lang
     chat_id = update.message.chat_id
     user_id = update.message.from_user.id
-    if user_is_admin(bot, user_id, chat_id):
+    is_admin = user_is_admin(bot, user_id, chat_id)
+    if is_admin == True:
         if len(args) == 1:
             lang_provided = args[0]
             if lang_provided == 'en' or lang_provided == 'es':
                 lang_provided = lang_provided.upper()
                 if lang_provided != lang:
                     lang = lang_provided
+                    save_config_properties(chat_id)
                     bot_msg = TEXT[lang]['LANG_CHANGE']
                 else:
                     bot_msg = TEXT[lang]['LANG_SAME']
@@ -257,8 +409,10 @@ def cmd_language(bot, update, args):
                 bot_msg = TEXT[lang]['LANG_BAD_LANG']
         else:
             bot_msg = TEXT[lang]['LANG_NOT_ARG']
-    else:
+    elif is_admin == False:
         bot_msg = TEXT[lang]['CMD_NOT_ALLOW']
+    else:
+        bot_msg = TEXT[lang]['CAN_NOT_GET_ADMINS']
     bot.send_message(chat_id, bot_msg)
 
 
@@ -267,13 +421,15 @@ def cmd_set_messages(bot, update, args):
     global num_messages_for_allow_urls
     chat_id = update.message.chat_id
     user_id = update.message.from_user.id
-    if user_is_admin(bot, user_id, chat_id):
+    is_admin = user_is_admin(bot, user_id, chat_id)
+    if is_admin == True:
         if len(args) == 1:
             num_msgs_provided = args[0]
             if num_msgs_provided.isdigit():
                 num_msgs_provided = int(num_msgs_provided)
                 if num_msgs_provided >= 0:
                     num_messages_for_allow_urls = num_msgs_provided
+                    save_config_properties(chat_id)
                     bot_msg = TEXT[lang]['SET_MSG_CHANGED'].format(num_messages_for_allow_urls)
                 else:
                     bot_msg = TEXT[lang]['SET_MSG_NEGATIVE']
@@ -281,8 +437,10 @@ def cmd_set_messages(bot, update, args):
                 bot_msg = TEXT[lang]['SET_MSG_BAD_ARG']
         else:
             bot_msg = TEXT[lang]['SET_MSG_NOT_ARG']
-    else:
+    elif is_admin == False:
         bot_msg = TEXT[lang]['CMD_NOT_ALLOW']
+    else:
+        bot_msg = TEXT[lang]['CAN_NOT_GET_ADMINS']
     bot.send_message(chat_id, bot_msg)
 
 
@@ -291,13 +449,15 @@ def cmd_set_hours(bot, update, args):
     global time_for_allow_urls_h
     chat_id = update.message.chat_id
     user_id = update.message.from_user.id
-    if user_is_admin(bot, user_id, chat_id):
+    is_admin = user_is_admin(bot, user_id, chat_id)
+    if is_admin == True:
         if len(args) == 1:
             hours_provided = args[0]
             if hours_provided.isdigit():
                 hours_provided = int(hours_provided)
                 if hours_provided >= 0:
                     time_for_allow_urls_h = hours_provided
+                    save_config_properties(chat_id)
                     bot_msg = TEXT[lang]['SET_HOURS_CHANGED'].format(time_for_allow_urls_h)
                 else:
                     bot_msg = TEXT[lang]['SET_HOURS_NEGATIVE_HOUR']
@@ -305,8 +465,10 @@ def cmd_set_hours(bot, update, args):
                 bot_msg = TEXT[lang]['SET_HOURS_BAD_ARG']
         else:
             bot_msg = TEXT[lang]['SET_HOURS_NOT_ARG']
-    else:
+    elif is_admin == False:
         bot_msg = TEXT[lang]['CMD_NOT_ALLOW']
+    else:
+        bot_msg = TEXT[lang]['CAN_NOT_GET_ADMINS']
     bot.send_message(chat_id, bot_msg)
 
 
@@ -331,7 +493,8 @@ def cmd_call_when_spam(bot, update, args):
     global call_admins_when_spam_detected
     chat_id = update.message.chat_id
     user_id = update.message.from_user.id
-    if user_is_admin(bot, user_id, chat_id):
+    is_admin = user_is_admin(bot, user_id, chat_id)
+    if is_admin == True:
         if len(args) == 1:
             value_provided = args[0]
             if value_provided == 'enable' or value_provided == 'disable':
@@ -341,18 +504,22 @@ def cmd_call_when_spam(bot, update, args):
                     else:
                         bot_msg = TEXT[lang]['CALL_WHEN_SPAM_ENABLE']
                         call_admins_when_spam_detected = True
+                        save_config_properties(chat_id)
                 else:
                     if call_admins_when_spam_detected == True:
                         bot_msg = TEXT[lang]['CALL_WHEN_SPAM_DISABLE']
                         call_admins_when_spam_detected = False
+                        save_config_properties(chat_id)
                     else:
                         bot_msg = TEXT[lang]['CALL_WHEN_SPAM_ALREADY_DISABLE']
             else:
                 bot_msg = TEXT[lang]['CALL_WHEN_SPAM_NOT_ARG']
         else:
             bot_msg = TEXT[lang]['CALL_WHEN_SPAM_NOT_ARG']
-    else:
+    elif is_admin == False:
         bot_msg = TEXT[lang]['CMD_NOT_ALLOW']
+    else:
+        bot_msg = TEXT[lang]['CAN_NOT_GET_ADMINS']
     bot.send_message(chat_id, bot_msg)
 
 
@@ -361,14 +528,18 @@ def cmd_enable(bot, update):
     global enable
     chat_id = update.message.chat_id
     user_id = update.message.from_user.id
-    if user_is_admin(bot, user_id, chat_id):
+    is_admin = user_is_admin(bot, user_id, chat_id)
+    if is_admin == True:
         if enable:
             bot_msg = TEXT[lang]['ALREADY_ENABLE']
         else:
             enable = True
+            save_config_properties(chat_id)
             bot_msg = TEXT[lang]['ENABLE']
-    else:
+    elif is_admin == False:
         bot_msg = TEXT[lang]['CMD_NOT_ALLOW']
+    else:
+        bot_msg = TEXT[lang]['CAN_NOT_GET_ADMINS']
     bot.send_message(chat_id, bot_msg)
 
 
@@ -377,14 +548,18 @@ def cmd_disable(bot, update):
     global enable
     chat_id = update.message.chat_id
     user_id = update.message.from_user.id
-    if user_is_admin(bot, user_id, chat_id):
+    is_admin = user_is_admin(bot, user_id, chat_id)
+    if is_admin == True:
         if enable:
             enable = False
+            save_config_properties(chat_id)
             bot_msg = TEXT[lang]['DISABLE']
         else:
             bot_msg = TEXT[lang]['ALREADY_DISABLE']
-    else:
+    elif is_admin == False:
         bot_msg = TEXT[lang]['CMD_NOT_ALLOW']
+    else:
+        bot_msg = TEXT[lang]['CAN_NOT_GET_ADMINS']
     bot.send_message(chat_id, bot_msg)
 
 
@@ -405,6 +580,8 @@ def cmd_about(bot, update):
 
 def main():
     '''Main Function'''
+    # Initialize resources by populating files list and configs with chats found files
+    initialize_resources()
     # Create an event handler (updater) for a Bot with the given Token and get the dispatcher
     updater = Updater(CONST['TOKEN'])
     dp = updater.dispatcher
