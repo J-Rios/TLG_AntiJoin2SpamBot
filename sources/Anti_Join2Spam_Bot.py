@@ -10,9 +10,9 @@ Author:
 Creation date:
     04/04/2018
 Last modified date:
-    08/04/2018
+    09/04/2018
 Version:
-    1.1.1
+    1.1.2
 '''
 
 ####################################################################################################
@@ -333,8 +333,9 @@ def msg_nocmd(bot, update):
             user_data['Num_messages'] = user_data['Num_messages'] + 1
             update_user(chat_id, user_data)
             num_published_messages = user_data['Num_messages']
-        # If the Bot Anti-Spam is enabled
-        if enable:
+        # If the user is not an Admin and the Bot Anti-Spam is enabled
+        is_admin = user_is_admin(bot, user_id, chat_id)
+        if (is_admin != True) and (enable == True):
             # If there is any URL in the message
             any_url = re.findall(CONST['REGEX_URLS'], text)
             if any_url:
@@ -379,8 +380,8 @@ def cmd_start(bot, update):
 
 def cmd_help(bot, update):
     '''Command /help message handler'''
-    bot_msg = TEXT[lang]['HELP'].format(CONST['INIT_MIN_MSG_ALLOW_URLS'], \
-        CONST['INIT_TIME_ALLOW_URLS'])
+    bot_msg = TEXT[lang]['HELP'].format(CONST['INIT_TIME_ALLOW_URLS'], \
+        CONST['INIT_MIN_MSG_ALLOW_URLS'])
     bot.send_message(update.message.chat_id, bot_msg)
 
 
