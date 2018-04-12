@@ -10,9 +10,9 @@ Author:
 Creation date:
     04/04/2018
 Last modified date:
-    09/04/2018
+    12/04/2018
 Version:
-    1.1.2
+    1.2.0
 '''
 
 ####################################################################################################
@@ -24,7 +24,7 @@ import signal
 import TSjson
 from os import path, makedirs, listdir
 from datetime import datetime, timedelta
-from time import strptime, mktime
+from time import time, sleep, strptime, mktime
 from threading import Thread, Lock
 from Constants import CONST, TEXT
 from operator import itemgetter
@@ -44,6 +44,7 @@ call_admins_when_spam_detected = CONST['INIT_CALL_ADMINS_WHEN_SPAM']
 files_users_list = []
 files_messages_list = []
 files_config_list = []
+to_delete_messages_list = []
 
 ####################################################################################################
 
@@ -375,19 +376,19 @@ def msg_nocmd(bot, update):
 
 def cmd_start(bot, update):
     '''Command /start message handler'''
-    bot.send_message(update.message.chat_id, TEXT[lang]['START'])
+    tlg_send_selfdestruct_msg(bot, update.message.chat_id, TEXT[lang]['START'])
 
 
 def cmd_help(bot, update):
     '''Command /help message handler'''
     bot_msg = TEXT[lang]['HELP'].format(CONST['INIT_TIME_ALLOW_URLS'], \
-        CONST['INIT_MIN_MSG_ALLOW_URLS'])
-    bot.send_message(update.message.chat_id, bot_msg)
+        CONST['INIT_MIN_MSG_ALLOW_URLS'], CONST['T_DEL_MSG'])
+    tlg_send_selfdestruct_msg(bot, update.message.chat_id, bot_msg)
 
 
 def cmd_commands(bot, update):
     '''Command /commands message handler'''
-    bot.send_message(update.message.chat_id, TEXT[lang]['COMMANDS'])
+    tlg_send_selfdestruct_msg(bot, update.message.chat_id, TEXT[lang]['COMMANDS'])
 
 
 def cmd_language(bot, update, args):
@@ -415,7 +416,7 @@ def cmd_language(bot, update, args):
         bot_msg = TEXT[lang]['CMD_NOT_ALLOW']
     else:
         bot_msg = TEXT[lang]['CAN_NOT_GET_ADMINS']
-    bot.send_message(chat_id, bot_msg)
+    tlg_send_selfdestruct_msg(bot, chat_id, bot_msg)
 
 
 def cmd_set_messages(bot, update, args):
@@ -443,7 +444,7 @@ def cmd_set_messages(bot, update, args):
         bot_msg = TEXT[lang]['CMD_NOT_ALLOW']
     else:
         bot_msg = TEXT[lang]['CAN_NOT_GET_ADMINS']
-    bot.send_message(chat_id, bot_msg)
+    tlg_send_selfdestruct_msg(bot, chat_id, bot_msg)
 
 
 def cmd_set_hours(bot, update, args):
@@ -471,15 +472,14 @@ def cmd_set_hours(bot, update, args):
         bot_msg = TEXT[lang]['CMD_NOT_ALLOW']
     else:
         bot_msg = TEXT[lang]['CAN_NOT_GET_ADMINS']
-    bot.send_message(chat_id, bot_msg)
+    tlg_send_selfdestruct_msg(bot, chat_id, bot_msg)
 
 
 def cmd_status(bot, update):
     '''Command /status message handler'''
-    chat_id = update.message.chat_id
     bot_msg = TEXT[lang]['STATUS'].format(num_messages_for_allow_urls, time_for_allow_urls_h, \
         call_admins_when_spam_detected, enable)
-    bot.send_message(update.message.chat_id, bot_msg)
+    tlg_send_selfdestruct_msg(bot, update.message.chat_id, bot_msg)
 
 
 def cmd_call_admins(bot, update):
@@ -522,7 +522,7 @@ def cmd_call_when_spam(bot, update, args):
         bot_msg = TEXT[lang]['CMD_NOT_ALLOW']
     else:
         bot_msg = TEXT[lang]['CAN_NOT_GET_ADMINS']
-    bot.send_message(chat_id, bot_msg)
+    tlg_send_selfdestruct_msg(bot, chat_id, bot_msg)
 
 
 def cmd_enable(bot, update):
@@ -542,7 +542,7 @@ def cmd_enable(bot, update):
         bot_msg = TEXT[lang]['CMD_NOT_ALLOW']
     else:
         bot_msg = TEXT[lang]['CAN_NOT_GET_ADMINS']
-    bot.send_message(chat_id, bot_msg)
+    tlg_send_selfdestruct_msg(bot, chat_id, bot_msg)
 
 
 def cmd_disable(bot, update):
@@ -562,19 +562,58 @@ def cmd_disable(bot, update):
         bot_msg = TEXT[lang]['CMD_NOT_ALLOW']
     else:
         bot_msg = TEXT[lang]['CAN_NOT_GET_ADMINS']
-    bot.send_message(chat_id, bot_msg)
+    tlg_send_selfdestruct_msg(bot, chat_id, bot_msg)
 
 
 def cmd_version(bot, update):
     '''Command /version message handler'''
     bot_msg = TEXT[lang]['VERSION'].format(CONST['VERSION'])
-    bot.send_message(update.message.chat_id, bot_msg)
+    tlg_send_selfdestruct_msg(bot, update.message.chat_id, bot_msg)
 
 
 def cmd_about(bot, update):
     '''Command /cmd_about handler'''
     bot_msg = TEXT[lang]['ABOUT_MSG'].format(CONST['DEVELOPER'], CONST['REPOSITORY'])
-    bot.send_message(update.message.chat_id, bot_msg)
+    tlg_send_selfdestruct_msg(bot, update.message.chat_id, bot_msg)
+
+####################################################################################################
+
+def tlg_send_selfdestruct_msg(bot, chat_id, message):
+    '''tlg_send_selfdestruct_msg_in() with default delete time'''
+    tlg_send_selfdestruct_msg_in(bot, chat_id, message, CONST['T_DEL_MSG'])
+
+
+def tlg_send_selfdestruct_msg_in(bot, chat_id, message, time_delete_min):
+    '''Send a telegram message that will be auto-delete in an specific time'''
+    # Send the message
+    sent_msg = bot.send_message(chat_id, message)
+    # If has been succesfully sent
+    if sent_msg:
+        # Get sent message ID and delete time
+        msg_id = sent_msg.message_id
+        destroy_time = int(time()) + int(time_delete_min*60)
+        # Add sent message data to to-delete messages list
+        sent_msg_data = OrderedDict([('Chat_id', None), ('Msg_id', None), ('delete_time', None)])
+        sent_msg_data['Chat_id'] = chat_id
+        sent_msg_data['Msg_id'] = msg_id
+        sent_msg_data['delete_time'] = destroy_time
+        to_delete_messages_list.append(sent_msg_data)
+
+
+def selfdestruct_messages(bot):
+    '''Handle remove messages sent by the Bot with the timed self-delete function'''
+    global to_delete_messages_list
+    while True:
+        # Check each Bot sent message
+        for sent_msg in to_delete_messages_list:
+            # If actual time is equal or more than the expected sent msg delete time
+            if int(time()) >= sent_msg['delete_time']:
+                # Delete that sent message
+                bot.delete_message(chat_id=sent_msg['Chat_id'], message_id=sent_msg['Msg_id'])
+                to_delete_messages_list.remove(sent_msg)
+        # Wait 10s (release CPU usage)
+        sleep(10)
+
 
 ####################################################################################################
 
@@ -609,8 +648,8 @@ def main():
     dp.add_handler(CommandHandler("about", cmd_about))
     # Launch the Bot ignoring pending messages (clean=True)
     updater.start_polling(clean=True)
-    # Stop the execution of actual main thread and wait for async Bot messages reception handlers
-    updater.idle()
+    # Handle self-messages delete
+    selfdestruct_messages(updater.bot)
 
 
 if __name__ == '__main__':
