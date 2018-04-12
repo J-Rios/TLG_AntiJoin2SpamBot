@@ -12,7 +12,7 @@ Creation date:
 Last modified date:
     12/04/2018
 Version:
-    1.2.0
+    1.2.1
 '''
 
 ####################################################################################################
@@ -286,6 +286,19 @@ def user_is_admin(bot, user_id, chat_id):
     return False
 
 
+def bot_is_admin(bot, chat_id):
+    '''Check if the Bot is Admin of the actual group'''
+    try:
+        bot_id = bot.id
+        group_admins = bot.get_chat_administrators(chat_id)
+    except:
+        return None
+    for admin in group_admins:
+        if bot_id == admin.user.id:
+            return True
+    return False
+
+
 def get_admins_usernames_in_string(bot, chat_id):
     '''Get all the group Administrators usernames/alias in a single line string separed by \' \''''
     admins = ""
@@ -376,6 +389,7 @@ def msg_nocmd(bot, update):
 
 def cmd_start(bot, update):
     '''Command /start message handler'''
+    tlg_msg_to_selfdestruct(bot, update.message)
     tlg_send_selfdestruct_msg(bot, update.message.chat_id, TEXT[lang]['START'])
 
 
@@ -383,11 +397,13 @@ def cmd_help(bot, update):
     '''Command /help message handler'''
     bot_msg = TEXT[lang]['HELP'].format(CONST['INIT_TIME_ALLOW_URLS'], \
         CONST['INIT_MIN_MSG_ALLOW_URLS'], CONST['T_DEL_MSG'])
+    tlg_msg_to_selfdestruct(bot, update.message)
     tlg_send_selfdestruct_msg(bot, update.message.chat_id, bot_msg)
 
 
 def cmd_commands(bot, update):
     '''Command /commands message handler'''
+    tlg_msg_to_selfdestruct(bot, update.message)
     tlg_send_selfdestruct_msg(bot, update.message.chat_id, TEXT[lang]['COMMANDS'])
 
 
@@ -416,6 +432,7 @@ def cmd_language(bot, update, args):
         bot_msg = TEXT[lang]['CMD_NOT_ALLOW']
     else:
         bot_msg = TEXT[lang]['CAN_NOT_GET_ADMINS']
+    tlg_msg_to_selfdestruct(bot, update.message)
     tlg_send_selfdestruct_msg(bot, chat_id, bot_msg)
 
 
@@ -444,6 +461,7 @@ def cmd_set_messages(bot, update, args):
         bot_msg = TEXT[lang]['CMD_NOT_ALLOW']
     else:
         bot_msg = TEXT[lang]['CAN_NOT_GET_ADMINS']
+    tlg_msg_to_selfdestruct(bot, update.message)
     tlg_send_selfdestruct_msg(bot, chat_id, bot_msg)
 
 
@@ -472,6 +490,7 @@ def cmd_set_hours(bot, update, args):
         bot_msg = TEXT[lang]['CMD_NOT_ALLOW']
     else:
         bot_msg = TEXT[lang]['CAN_NOT_GET_ADMINS']
+    tlg_msg_to_selfdestruct(bot, update.message)
     tlg_send_selfdestruct_msg(bot, chat_id, bot_msg)
 
 
@@ -479,6 +498,7 @@ def cmd_status(bot, update):
     '''Command /status message handler'''
     bot_msg = TEXT[lang]['STATUS'].format(num_messages_for_allow_urls, time_for_allow_urls_h, \
         call_admins_when_spam_detected, enable)
+    tlg_msg_to_selfdestruct(bot, update.message)
     tlg_send_selfdestruct_msg(bot, update.message.chat_id, bot_msg)
 
 
@@ -522,6 +542,7 @@ def cmd_call_when_spam(bot, update, args):
         bot_msg = TEXT[lang]['CMD_NOT_ALLOW']
     else:
         bot_msg = TEXT[lang]['CAN_NOT_GET_ADMINS']
+    tlg_msg_to_selfdestruct(bot, update.message)
     tlg_send_selfdestruct_msg(bot, chat_id, bot_msg)
 
 
@@ -542,6 +563,7 @@ def cmd_enable(bot, update):
         bot_msg = TEXT[lang]['CMD_NOT_ALLOW']
     else:
         bot_msg = TEXT[lang]['CAN_NOT_GET_ADMINS']
+    tlg_msg_to_selfdestruct(bot, update.message)
     tlg_send_selfdestruct_msg(bot, chat_id, bot_msg)
 
 
@@ -562,18 +584,21 @@ def cmd_disable(bot, update):
         bot_msg = TEXT[lang]['CMD_NOT_ALLOW']
     else:
         bot_msg = TEXT[lang]['CAN_NOT_GET_ADMINS']
+    tlg_msg_to_selfdestruct(bot, update.message)
     tlg_send_selfdestruct_msg(bot, chat_id, bot_msg)
 
 
 def cmd_version(bot, update):
     '''Command /version message handler'''
     bot_msg = TEXT[lang]['VERSION'].format(CONST['VERSION'])
+    tlg_msg_to_selfdestruct(bot, update.message)
     tlg_send_selfdestruct_msg(bot, update.message.chat_id, bot_msg)
 
 
 def cmd_about(bot, update):
     '''Command /cmd_about handler'''
     bot_msg = TEXT[lang]['ABOUT_MSG'].format(CONST['DEVELOPER'], CONST['REPOSITORY'])
+    tlg_msg_to_selfdestruct(bot, update.message)
     tlg_send_selfdestruct_msg(bot, update.message.chat_id, bot_msg)
 
 ####################################################################################################
@@ -583,8 +608,13 @@ def tlg_send_selfdestruct_msg(bot, chat_id, message):
     tlg_send_selfdestruct_msg_in(bot, chat_id, message, CONST['T_DEL_MSG'])
 
 
+def tlg_msg_to_selfdestruct(bot, message):
+    '''tlg_msg_to_selfdestruct_in() with default delete time'''
+    tlg_msg_to_selfdestruct_in(bot, message, CONST['T_DEL_MSG'])
+
+
 def tlg_send_selfdestruct_msg_in(bot, chat_id, message, time_delete_min):
-    '''Send a telegram message that will be auto-delete in an specific time'''
+    '''Send a telegram message that will be auto-delete in specified time'''
     # Send the message
     sent_msg = bot.send_message(chat_id, message)
     # If has been succesfully sent
@@ -592,6 +622,22 @@ def tlg_send_selfdestruct_msg_in(bot, chat_id, message, time_delete_min):
         # Get sent message ID and delete time
         msg_id = sent_msg.message_id
         destroy_time = int(time()) + int(time_delete_min*60)
+        # Add sent message data to to-delete messages list
+        sent_msg_data = OrderedDict([('Chat_id', None), ('Msg_id', None), ('delete_time', None)])
+        sent_msg_data['Chat_id'] = chat_id
+        sent_msg_data['Msg_id'] = msg_id
+        sent_msg_data['delete_time'] = destroy_time
+        to_delete_messages_list.append(sent_msg_data)
+
+
+def tlg_msg_to_selfdestruct_in(bot, message, time_delete_min):
+    '''Add a telegram message to be auto-delete in specified time''' 
+    # Get sent message ID and delete time
+    chat_id = message.chat_id
+    msg_id = message.message_id
+    destroy_time = int(time()) + int(time_delete_min*60)
+    # Check if the Bot is Admin
+    if bot_is_admin(bot, chat_id) == True:
         # Add sent message data to to-delete messages list
         sent_msg_data = OrderedDict([('Chat_id', None), ('Msg_id', None), ('delete_time', None)])
         sent_msg_data['Chat_id'] = chat_id
