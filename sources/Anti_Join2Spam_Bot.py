@@ -12,7 +12,7 @@ Creation date:
 Last modified date:
     14/04/2018
 Version:
-    1.3.0
+    1.3.1
 '''
 
 ####################################################################################################
@@ -328,38 +328,41 @@ def msg_nocmd(bot, update):
         time_for_allow_urls_h = get_chat_config(chat_id, 'Time_for_allow_urls_h')
         num_messages_for_allow_urls = get_chat_config(chat_id, 'Num_messages_for_allow_urls')
         call_admins_when_spam_detected = get_chat_config(chat_id, 'Call_admins_when_spam_detected')
-        # If it is a text message
-        if text != None:
-            # If user not yet register, add to users file, else, get his number of published messages
-            if not user_in_json(chat_id, user_id):
-                # Register user and set "Num_messages" and "Join_date" to allow publish URLs
-                register_new_user(chat_id, user_id, user_name, msg_date)
-                user_data = get_user(chat_id, user_id)
-                user_data['Num_messages'] = num_messages_for_allow_urls
-                user_data['Join_date'] = datetime(1971, 1, 1).strftime("%Y-%m-%d %H:%M:%S")
-                update_user(chat_id, user_data)
-                num_published_messages = num_messages_for_allow_urls + 1
-            else:
-                user_data = get_user(chat_id, user_id)
-                user_data['Num_messages'] = user_data['Num_messages'] + 1
-                update_user(chat_id, user_data)
-                num_published_messages = user_data['Num_messages']
-            # If the user is not an Admin and the Bot Anti-Spam is enabled
-            is_admin = user_is_admin(bot, user_id, chat_id)
-            if (is_admin != True) and (enable == True):
-                # If there is any URL in the message
-                any_url = re.findall(CONST['REGEX_URLS'], text)
-                if any_url:
-                    # Check user time in the group
-                    user_join_date = user_data['Join_date']
-                    user_join_date_dateTime = strptime(user_join_date, "%Y-%m-%d %H:%M:%S")
-                    msg_date_dateTime = strptime(msg_date, "%Y-%m-%d %H:%M:%S")
-                    t0 = mktime(user_join_date_dateTime) # Date to epoch
-                    t1 = mktime(msg_date_dateTime) # Date to epoch
-                    user_hours_in_group = (t1 - t0)/3600
-                    # If user is relatively new in the group or has not write enough messages
-                    if ((user_hours_in_group < time_for_allow_urls_h) or 
-                        (num_published_messages < num_messages_for_allow_urls)):
+        # If user not yet register, add to users file, else, get his number of published msgs
+        if not user_in_json(chat_id, user_id):
+            # Register user and set "Num_messages" and "Join_date" to allow publish URLs
+            register_new_user(chat_id, user_id, user_name, msg_date)
+            user_data = get_user(chat_id, user_id)
+            user_data['Num_messages'] = num_messages_for_allow_urls
+            user_data['Join_date'] = datetime(1971, 1, 1).strftime("%Y-%m-%d %H:%M:%S")
+            update_user(chat_id, user_data)
+        else:
+            # Increase num messages count
+            user_data = get_user(chat_id, user_id)
+            user_data['Num_messages'] = user_data['Num_messages'] + 1
+            update_user(chat_id, user_data)
+            # If it is a text message
+            if text != None:
+                # If the user is not an Admin and the Bot Anti-Spam is enabled
+                is_admin = user_is_admin(bot, user_id, chat_id)
+                if (is_admin != True) and (enable == True):
+                    # If there is any URL in the message
+                    any_url = re.findall(CONST['REGEX_URLS'], text)
+                    if any_url:
+                        num_published_messages = user_data['Num_messages']
+                        # Check user time in the group
+                        user_join_date = user_data['Join_date']
+                        user_join_date_dateTime = strptime(user_join_date, "%Y-%m-%d %H:%M:%S")
+                        msg_date_dateTime = strptime(msg_date, "%Y-%m-%d %H:%M:%S")
+                        t0 = mktime(user_join_date_dateTime) # Date to epoch
+                        t1 = mktime(msg_date_dateTime) # Date to epoch
+                        user_hours_in_group = (t1 - t0)/3600
+                        # If user is relatively new in the group or has not write enough messages
+                        if ((user_hours_in_group < time_for_allow_urls_h) or 
+                            (num_published_messages < num_messages_for_allow_urls)):
+                            # Decrease this message from the user messages count
+                            user_data['Num_messages'] = user_data['Num_messages'] - 1
+                            update_user(chat_id, user_data)
                             # Delete user message and notify what happen
                             bot.delete_message(chat_id=chat_id, message_id=msg_id)
                             bot_msg_head = TEXT[lang]['MSG_SPAM_HEADER']
@@ -373,13 +376,13 @@ def msg_nocmd(bot, update):
                                     bot_msg_2 = TEXT[lang]['CALLING_ADMINS'].format(admins)
                                     bot_message = "{}{}".format(bot_message, bot_msg_2)
                             bot.send_message(chat_id, bot_message)
-            # Truncate the message text to 500 characters
-            if len(text) > 50:
-                text = text[0:50]
-                text = "{}...".format(text)
-            # Add the message to messages file
-            add_new_message(chat_id, msg_id, user_id, user_name, text, msg_date)
-    
+                # Truncate the message text to 500 characters
+                if len(text) > 50:
+                    text = text[0:50]
+                    text = "{}...".format(text)
+                # Add the message to messages file
+                add_new_message(chat_id, msg_id, user_id, user_name, text, msg_date)
+
 ####################################################################################################
 
 ### Received Telegram command messages handlers ###
