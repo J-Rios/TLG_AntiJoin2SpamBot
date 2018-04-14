@@ -10,9 +10,9 @@ Author:
 Creation date:
     04/04/2018
 Last modified date:
-    12/04/2018
+    14/04/2018
 Version:
-    1.2.1
+    1.3.0
 '''
 
 ####################################################################################################
@@ -36,11 +36,6 @@ from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, Regex
 ####################################################################################################
 
 ### Globals ###
-lang = CONST['INIT_LANG']
-enable = CONST['INIT_ENABLE']
-time_for_allow_urls_h = CONST['INIT_TIME_ALLOW_URLS']
-num_messages_for_allow_urls = CONST['INIT_MIN_MSG_ALLOW_URLS']
-call_admins_when_spam_detected = CONST['INIT_CALL_ADMINS_WHEN_SPAM']
 files_users_list = []
 files_messages_list = []
 files_config_list = []
@@ -70,12 +65,7 @@ signal.signal(signal.SIGINT, signal_handler)  # SIGINT (Ctrl+C) to signal_handle
 ### General functions ###
 
 def initialize_resources():
-    '''Initialize resources by populating files list and configs with chats found files'''
-    global lang
-    global enable
-    global time_for_allow_urls_h
-    global num_messages_for_allow_urls
-    global call_admins_when_spam_detected
+    '''Initialize resources by populating files list with chats found files'''
     global files_users_list
     global files_messages_list
     global files_config_list
@@ -88,26 +78,13 @@ def initialize_resources():
         if files:
             for f in files:
                 # Populate users files list
-                users_file = OrderedDict([('ID', None), ('File', None)])
-                users_file['ID'] = f
-                users_file['File'] = get_chat_users_file(f)
+                users_file = OrderedDict([('ID', f), ('File', get_chat_users_file(f))])
                 files_users_list.append(users_file)
                 # Populate messages files list
-                messages_file = OrderedDict([('ID', None), ('File', None)])
-                messages_file['ID'] = f
-                messages_file['File'] = get_chat_messages_file(f)
+                messages_file = OrderedDict([('ID', f), ('File', get_chat_messages_file(f))])
                 files_messages_list.append(messages_file)
                 # Restore last configurations properties of the chat
-                config_file = OrderedDict([('ID', None), ('File', None)])
-                config_file['ID'] = f
-                config_file['File'] = get_chat_config_file(f)
-                config_data = config_file['File'].read()
-                if config_data:
-                    lang = config_data['Language']
-                    enable = config_data['Antispam']
-                    time_for_allow_urls_h = config_data['Time_for_allow_urls_h']
-                    num_messages_for_allow_urls = config_data['Num_messages_for_allow_urls']
-                    call_admins_when_spam_detected = config_data['Call_admins_when_spam_detected']
+                config_file = OrderedDict([('ID', f), ('File', get_chat_config_file(f))])
                 files_config_list.append(config_file)
 
 
@@ -179,26 +156,39 @@ def get_chat_config_file(chat_id):
     return file['File']
 
 
-def save_config_properties(chat_id):
+def get_default_config_data():
+    '''Get default config data structure'''
+    config_data = OrderedDict( \
+    [ \
+        ('Language', CONST['INIT_LANG']), \
+        ('Antispam', CONST['INIT_ENABLE']), \
+        ('Time_for_allow_urls_h', CONST['INIT_TIME_ALLOW_URLS']), \
+        ('Num_messages_for_allow_urls', CONST['INIT_MIN_MSG_ALLOW_URLS']), \
+        ('Call_admins_when_spam_detected', CONST['INIT_CALL_ADMINS_WHEN_SPAM']) \
+    ])
+    return config_data
+
+
+def save_config_property(chat_id, property, value):
     '''Store actual chat configuration in file'''
     fjson_config = get_chat_config_file(chat_id)
     config_data = fjson_config.read()
     if not config_data:
-        config_data = OrderedDict( \
-        [ \
-            ('Language', lang), \
-            ('Antispam', enable), \
-            ('Time_for_allow_urls_h', time_for_allow_urls_h), \
-            ('Num_messages_for_allow_urls', num_messages_for_allow_urls), \
-            ('Call_admins_when_spam_detected', call_admins_when_spam_detected) \
-        ])
-    else:
-        config_data['Language'] = lang
-        config_data['Antispam'] = enable
-        config_data['Time_for_allow_urls_h'] = time_for_allow_urls_h
-        config_data['Num_messages_for_allow_urls'] = num_messages_for_allow_urls
-        config_data['Call_admins_when_spam_detected'] = call_admins_when_spam_detected
+        config_data = get_default_config_data()
+    config_data[property] = value
     fjson_config.write(config_data)
+
+
+def get_chat_config(chat_id, param):
+    '''Get specific stored chat configuration property'''
+    file = get_chat_config_file(chat_id)
+    if file:
+        config_data = file.read()
+        if not config_data:
+            config_data = get_default_config_data()
+    else:
+        config_data = get_default_config_data()
+    return config_data[param]
 
 
 def register_new_user(chat_id, user_id, user_name, join_date):
@@ -317,71 +307,78 @@ def get_admins_usernames_in_string(bot, chat_id):
 def new_user(bot, update):
     '''New member join the group event handler'''
     chat_id = update.message.chat_id
-    user_id = update.message.from_user.id
-    user_name = update.message.from_user.name
+    user_id = update.message.new_chat_member.id
+    user_name = update.message.new_chat_member.name
     join_date = (update.message.date).now().strftime("%Y-%m-%d %H:%M:%S")
     register_new_user(chat_id, user_id, user_name, join_date)
 
 
 def msg_nocmd(bot, update):
     '''All Not-command messages handler'''
-    chat_id = update.message.chat_id
-    msg_id = update.message.message_id
-    user_id = update.message.from_user.id
-    user_name = update.message.from_user.name
-    msg_date = (update.message.date).now().strftime("%Y-%m-%d %H:%M:%S")
-    text = update.message.text
-    # If it is a text message
-    if text != None:
-        # If user not yet register, add to users file, else, get his number of published messages
-        if not user_in_json(chat_id, user_id):
-            # Register user and set "Num_messages" and "Join_date" to allow publish URLs
-            register_new_user(chat_id, user_id, user_name, msg_date)
-            user_data = get_user(chat_id, user_id)
-            user_data['Num_messages'] = num_messages_for_allow_urls
-            user_data['Join_date'] = datetime(1971, 1, 1).strftime("%Y-%m-%d %H:%M:%S")
-            update_user(chat_id, user_data)
-            num_published_messages = num_messages_for_allow_urls + 1
-        else:
-            user_data = get_user(chat_id, user_id)
-            user_data['Num_messages'] = user_data['Num_messages'] + 1
-            update_user(chat_id, user_data)
-            num_published_messages = user_data['Num_messages']
-        # If the user is not an Admin and the Bot Anti-Spam is enabled
-        is_admin = user_is_admin(bot, user_id, chat_id)
-        if (is_admin != True) and (enable == True):
-            # If there is any URL in the message
-            any_url = re.findall(CONST['REGEX_URLS'], text)
-            if any_url:
-                # Check user time in the group
-                user_join_date = user_data['Join_date']
-                user_join_date_dateTime = strptime(user_join_date, "%Y-%m-%d %H:%M:%S")
-                msg_date_dateTime = strptime(msg_date, "%Y-%m-%d %H:%M:%S")
-                t0 = mktime(user_join_date_dateTime) # Date to epoch
-                t1 = mktime(msg_date_dateTime) # Date to epoch
-                user_hours_in_group = (t1 - t0)/3600
-                # If user is relatively new in the group or has not write enough messages
-                if ((user_hours_in_group < time_for_allow_urls_h) or 
-                    (num_published_messages < num_messages_for_allow_urls)):
-                        # Delete user message and notify what happen
-                        bot.delete_message(chat_id=chat_id, message_id=msg_id)
-                        bot_msg_head = TEXT[lang]['MSG_SPAM_HEADER']
-                        bot_msg_0 = TEXT[lang]['MSG_SPAM_DETECTED_0'].format(user_name)
-                        bot_msg_1 = TEXT[lang]['MSG_SPAM_DETECTED_1'].format( \
-                            time_for_allow_urls_h, num_messages_for_allow_urls)
-                        bot_message = "{}{}{}".format(bot_msg_head, bot_msg_0, bot_msg_1)
-                        if call_admins_when_spam_detected:
-                            admins = get_admins_usernames_in_string(bot, chat_id)
-                            if admins:
-                                bot_msg_2 = TEXT[lang]['CALLING_ADMINS'].format(admins)
-                                bot_message = "{}{}".format(bot_message, bot_msg_2)
-                        bot.send_message(chat_id, bot_message)
-        # Truncate the message text to 500 characters
-        if len(text) > 50:
-            text = text[0:50]
-            text = "{}...".format(text)
-        # Add the message to messages file
-        add_new_message(chat_id, msg_id, user_id, user_name, text, msg_date)
+    chat_type = update.message.chat.type
+    if chat_type != "private":
+        chat_id = update.message.chat_id
+        msg_id = update.message.message_id
+        user_id = update.message.from_user.id
+        user_name = update.message.from_user.name
+        msg_date = (update.message.date).now().strftime("%Y-%m-%d %H:%M:%S")
+        text = update.message.text
+        lang = get_chat_config(chat_id, 'Language')
+        enable = get_chat_config(chat_id, 'Antispam')
+        time_for_allow_urls_h = get_chat_config(chat_id, 'Time_for_allow_urls_h')
+        num_messages_for_allow_urls = get_chat_config(chat_id, 'Num_messages_for_allow_urls')
+        call_admins_when_spam_detected = get_chat_config(chat_id, 'Call_admins_when_spam_detected')
+        # If it is a text message
+        if text != None:
+            # If user not yet register, add to users file, else, get his number of published messages
+            if not user_in_json(chat_id, user_id):
+                # Register user and set "Num_messages" and "Join_date" to allow publish URLs
+                register_new_user(chat_id, user_id, user_name, msg_date)
+                user_data = get_user(chat_id, user_id)
+                user_data['Num_messages'] = num_messages_for_allow_urls
+                user_data['Join_date'] = datetime(1971, 1, 1).strftime("%Y-%m-%d %H:%M:%S")
+                update_user(chat_id, user_data)
+                num_published_messages = num_messages_for_allow_urls + 1
+            else:
+                user_data = get_user(chat_id, user_id)
+                user_data['Num_messages'] = user_data['Num_messages'] + 1
+                update_user(chat_id, user_data)
+                num_published_messages = user_data['Num_messages']
+            # If the user is not an Admin and the Bot Anti-Spam is enabled
+            is_admin = user_is_admin(bot, user_id, chat_id)
+            if (is_admin != True) and (enable == True):
+                # If there is any URL in the message
+                any_url = re.findall(CONST['REGEX_URLS'], text)
+                if any_url:
+                    # Check user time in the group
+                    user_join_date = user_data['Join_date']
+                    user_join_date_dateTime = strptime(user_join_date, "%Y-%m-%d %H:%M:%S")
+                    msg_date_dateTime = strptime(msg_date, "%Y-%m-%d %H:%M:%S")
+                    t0 = mktime(user_join_date_dateTime) # Date to epoch
+                    t1 = mktime(msg_date_dateTime) # Date to epoch
+                    user_hours_in_group = (t1 - t0)/3600
+                    # If user is relatively new in the group or has not write enough messages
+                    if ((user_hours_in_group < time_for_allow_urls_h) or 
+                        (num_published_messages < num_messages_for_allow_urls)):
+                            # Delete user message and notify what happen
+                            bot.delete_message(chat_id=chat_id, message_id=msg_id)
+                            bot_msg_head = TEXT[lang]['MSG_SPAM_HEADER']
+                            bot_msg_0 = TEXT[lang]['MSG_SPAM_DETECTED_0'].format(user_name)
+                            bot_msg_1 = TEXT[lang]['MSG_SPAM_DETECTED_1'].format( \
+                                num_messages_for_allow_urls, time_for_allow_urls_h)
+                            bot_message = "{}{}{}".format(bot_msg_head, bot_msg_0, bot_msg_1)
+                            if call_admins_when_spam_detected:
+                                admins = get_admins_usernames_in_string(bot, chat_id)
+                                if admins:
+                                    bot_msg_2 = TEXT[lang]['CALLING_ADMINS'].format(admins)
+                                    bot_message = "{}{}".format(bot_message, bot_msg_2)
+                            bot.send_message(chat_id, bot_message)
+            # Truncate the message text to 500 characters
+            if len(text) > 50:
+                text = text[0:50]
+                text = "{}...".format(text)
+            # Add the message to messages file
+            add_new_message(chat_id, msg_id, user_id, user_name, text, msg_date)
     
 ####################################################################################################
 
@@ -389,38 +386,49 @@ def msg_nocmd(bot, update):
 
 def cmd_start(bot, update):
     '''Command /start message handler'''
+    chat_id = update.message.chat_id
+    lang = get_chat_config(chat_id, 'Language')
     tlg_msg_to_selfdestruct(bot, update.message)
-    tlg_send_selfdestruct_msg(bot, update.message.chat_id, TEXT[lang]['START'])
+    tlg_send_selfdestruct_msg(bot, chat_id, TEXT[lang]['START'])
 
 
 def cmd_help(bot, update):
     '''Command /help message handler'''
+    chat_id = update.message.chat_id
+    lang = get_chat_config(chat_id, 'Language')
     bot_msg = TEXT[lang]['HELP'].format(CONST['INIT_TIME_ALLOW_URLS'], \
         CONST['INIT_MIN_MSG_ALLOW_URLS'], CONST['T_DEL_MSG'])
     tlg_msg_to_selfdestruct(bot, update.message)
-    tlg_send_selfdestruct_msg(bot, update.message.chat_id, bot_msg)
+    tlg_send_selfdestruct_msg(bot, chat_id, bot_msg)
 
 
 def cmd_commands(bot, update):
     '''Command /commands message handler'''
+    chat_id = update.message.chat_id
+    lang = get_chat_config(chat_id, 'Language')
     tlg_msg_to_selfdestruct(bot, update.message)
-    tlg_send_selfdestruct_msg(bot, update.message.chat_id, TEXT[lang]['COMMANDS'])
+    tlg_send_selfdestruct_msg(bot, chat_id, TEXT[lang]['COMMANDS'])
 
 
 def cmd_language(bot, update, args):
     '''Command /language message handler'''
-    global lang
     chat_id = update.message.chat_id
+    chat_type = update.message.chat.type
     user_id = update.message.from_user.id
-    is_admin = user_is_admin(bot, user_id, chat_id)
-    if is_admin == True:
+    lang = get_chat_config(chat_id, 'Language')
+    allow_command = True
+    if chat_type != "private":
+        is_admin = user_is_admin(bot, user_id, chat_id)
+        if is_admin == False:
+            allow_command = False
+    if allow_command:
         if len(args) == 1:
             lang_provided = args[0]
             if lang_provided == 'en' or lang_provided == 'es':
                 lang_provided = lang_provided.upper()
                 if lang_provided != lang:
                     lang = lang_provided
-                    save_config_properties(chat_id)
+                    save_config_property(chat_id, 'Language', lang)
                     bot_msg = TEXT[lang]['LANG_CHANGE']
                 else:
                     bot_msg = TEXT[lang]['LANG_SAME']
@@ -438,9 +446,9 @@ def cmd_language(bot, update, args):
 
 def cmd_set_messages(bot, update, args):
     '''Command /set_messages message handler'''
-    global num_messages_for_allow_urls
     chat_id = update.message.chat_id
     user_id = update.message.from_user.id
+    lang = get_chat_config(chat_id, 'Language')
     is_admin = user_is_admin(bot, user_id, chat_id)
     if is_admin == True:
         if len(args) == 1:
@@ -448,9 +456,8 @@ def cmd_set_messages(bot, update, args):
             if num_msgs_provided.isdigit():
                 num_msgs_provided = int(num_msgs_provided)
                 if num_msgs_provided >= 0:
-                    num_messages_for_allow_urls = num_msgs_provided
-                    save_config_properties(chat_id)
-                    bot_msg = TEXT[lang]['SET_MSG_CHANGED'].format(num_messages_for_allow_urls)
+                    save_config_property(chat_id, 'Num_messages_for_allow_urls', num_msgs_provided)
+                    bot_msg = TEXT[lang]['SET_MSG_CHANGED'].format(num_msgs_provided)
                 else:
                     bot_msg = TEXT[lang]['SET_MSG_NEGATIVE']
             else:
@@ -467,9 +474,9 @@ def cmd_set_messages(bot, update, args):
 
 def cmd_set_hours(bot, update, args):
     '''Command /set_hours message handler'''
-    global time_for_allow_urls_h
     chat_id = update.message.chat_id
     user_id = update.message.from_user.id
+    lang = get_chat_config(chat_id, 'Language')
     is_admin = user_is_admin(bot, user_id, chat_id)
     if is_admin == True:
         if len(args) == 1:
@@ -477,9 +484,8 @@ def cmd_set_hours(bot, update, args):
             if hours_provided.isdigit():
                 hours_provided = int(hours_provided)
                 if hours_provided >= 0:
-                    time_for_allow_urls_h = hours_provided
-                    save_config_properties(chat_id)
-                    bot_msg = TEXT[lang]['SET_HOURS_CHANGED'].format(time_for_allow_urls_h)
+                    save_config_property(chat_id, 'Time_for_allow_urls_h', hours_provided)
+                    bot_msg = TEXT[lang]['SET_HOURS_CHANGED'].format(hours_provided)
                 else:
                     bot_msg = TEXT[lang]['SET_HOURS_NEGATIVE_HOUR']
             else:
@@ -496,15 +502,22 @@ def cmd_set_hours(bot, update, args):
 
 def cmd_status(bot, update):
     '''Command /status message handler'''
+    chat_id = update.message.chat_id
+    lang = get_chat_config(chat_id, 'Language')
+    enable = get_chat_config(chat_id, 'Antispam')
+    num_messages_for_allow_urls = get_chat_config(chat_id, 'Num_messages_for_allow_urls')
+    time_for_allow_urls_h = get_chat_config(chat_id, 'Time_for_allow_urls_h')
+    call_admins_when_spam_detected = get_chat_config(chat_id, 'Call_admins_when_spam_detected')
     bot_msg = TEXT[lang]['STATUS'].format(num_messages_for_allow_urls, time_for_allow_urls_h, \
         call_admins_when_spam_detected, enable)
     tlg_msg_to_selfdestruct(bot, update.message)
-    tlg_send_selfdestruct_msg(bot, update.message.chat_id, bot_msg)
+    tlg_send_selfdestruct_msg(bot, chat_id, bot_msg)
 
 
 def cmd_call_admins(bot, update):
     '''Command /call_admins message handler'''
     chat_id = update.message.chat_id
+    lang = get_chat_config(chat_id, 'Language')
     admins = get_admins_usernames_in_string(bot, chat_id)
     bot_msg = TEXT[lang]['CALLING_ADMINS'].format(admins)
     bot.send_message(chat_id, bot_msg)
@@ -512,9 +525,10 @@ def cmd_call_admins(bot, update):
 
 def cmd_call_when_spam(bot, update, args):
     '''Command /cmd_call_when_spam message handler'''
-    global call_admins_when_spam_detected
     chat_id = update.message.chat_id
     user_id = update.message.from_user.id
+    lang = get_chat_config(chat_id, 'Language')
+    call_admins_when_spam_detected = get_chat_config(chat_id, 'Call_admins_when_spam_detected')
     is_admin = user_is_admin(bot, user_id, chat_id)
     if is_admin == True:
         if len(args) == 1:
@@ -526,12 +540,14 @@ def cmd_call_when_spam(bot, update, args):
                     else:
                         bot_msg = TEXT[lang]['CALL_WHEN_SPAM_ENABLE']
                         call_admins_when_spam_detected = True
-                        save_config_properties(chat_id)
+                        save_config_property(chat_id, 'Call_admins_when_spam_detected', \
+                            call_admins_when_spam_detected)
                 else:
                     if call_admins_when_spam_detected == True:
                         bot_msg = TEXT[lang]['CALL_WHEN_SPAM_DISABLE']
                         call_admins_when_spam_detected = False
-                        save_config_properties(chat_id)
+                        save_config_property(chat_id, 'Call_admins_when_spam_detected', \
+                            call_admins_when_spam_detected)
                     else:
                         bot_msg = TEXT[lang]['CALL_WHEN_SPAM_ALREADY_DISABLE']
             else:
@@ -548,16 +564,17 @@ def cmd_call_when_spam(bot, update, args):
 
 def cmd_enable(bot, update):
     '''Command /disable message handler'''
-    global enable
     chat_id = update.message.chat_id
     user_id = update.message.from_user.id
+    lang = get_chat_config(chat_id, 'Language')
+    enable = get_chat_config(chat_id, 'Antispam')
     is_admin = user_is_admin(bot, user_id, chat_id)
     if is_admin == True:
         if enable:
             bot_msg = TEXT[lang]['ALREADY_ENABLE']
         else:
             enable = True
-            save_config_properties(chat_id)
+            save_config_property(chat_id, 'Antispam', enable)
             bot_msg = TEXT[lang]['ENABLE']
     elif is_admin == False:
         bot_msg = TEXT[lang]['CMD_NOT_ALLOW']
@@ -569,14 +586,15 @@ def cmd_enable(bot, update):
 
 def cmd_disable(bot, update):
     '''Command /disable message handler'''
-    global enable
     chat_id = update.message.chat_id
     user_id = update.message.from_user.id
+    lang = get_chat_config(chat_id, 'Language')
+    enable = get_chat_config(chat_id, 'Antispam')
     is_admin = user_is_admin(bot, user_id, chat_id)
     if is_admin == True:
         if enable:
             enable = False
-            save_config_properties(chat_id)
+            save_config_property(chat_id, 'Antispam', enable)
             bot_msg = TEXT[lang]['DISABLE']
         else:
             bot_msg = TEXT[lang]['ALREADY_DISABLE']
@@ -590,16 +608,20 @@ def cmd_disable(bot, update):
 
 def cmd_version(bot, update):
     '''Command /version message handler'''
+    chat_id = update.message.chat_id
+    lang = get_chat_config(chat_id, 'Language')
     bot_msg = TEXT[lang]['VERSION'].format(CONST['VERSION'])
     tlg_msg_to_selfdestruct(bot, update.message)
-    tlg_send_selfdestruct_msg(bot, update.message.chat_id, bot_msg)
+    tlg_send_selfdestruct_msg(bot, chat_id, bot_msg)
 
 
 def cmd_about(bot, update):
     '''Command /cmd_about handler'''
+    chat_id = update.message.chat_id
+    lang = get_chat_config(chat_id, 'Language')
     bot_msg = TEXT[lang]['ABOUT_MSG'].format(CONST['DEVELOPER'], CONST['REPOSITORY'])
     tlg_msg_to_selfdestruct(bot, update.message)
-    tlg_send_selfdestruct_msg(bot, update.message.chat_id, bot_msg)
+    tlg_send_selfdestruct_msg(bot, chat_id, bot_msg)
 
 ####################################################################################################
 
@@ -659,7 +681,6 @@ def selfdestruct_messages(bot):
                 to_delete_messages_list.remove(sent_msg)
         # Wait 10s (release CPU usage)
         sleep(10)
-
 
 ####################################################################################################
 
