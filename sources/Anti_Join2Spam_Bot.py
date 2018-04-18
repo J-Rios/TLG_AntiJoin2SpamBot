@@ -10,9 +10,9 @@ Author:
 Creation date:
     04/04/2018
 Last modified date:
-    18/04/2018
+    19/04/2018
 Version:
-    1.4.0
+    1.4.1
 '''
 
 ####################################################################################################
@@ -295,10 +295,11 @@ def get_admins_usernames_in_string(bot, chat_id):
     admins = ""
     group_admins = bot.get_chat_administrators(chat_id)
     for admin in group_admins:
-        if admins == "":
-            admins = "@{}".format(admin.user.username)
-        else:
-            admins = "{}\n@{}".format(admins, admin.user.username)
+        if admin.user.is_bot == False: # Ignore Bots
+            if admins == "":
+                admins = "@{}".format(admin.user.username)
+            else:
+                admins = "{}\n@{}".format(admins, admin.user.username)
     return admins
 
 ####################################################################################################
