@@ -203,6 +203,25 @@ TEXT = {
             '/call_when_spam enable\n' \
             '/call_when_spam disable',
 
+        'USERS_ADD_BOTS_ENABLE' : \
+            'Allow users to add Bots disabled.',
+
+        'USERS_ADD_BOTS_DISABLE' : \
+            'Allow users to add Bots disabled.',
+        
+        'USERS_ADD_BOTS_ALREADY_ENABLE' : \
+            'Allow users to add Bots is already enabled.',
+
+        'USERS_ADD_BOTS_ALREADY_DISABLE' : \
+            'Allow users to add Bots is already disabled.',
+
+        'USERS_ADD_BOTS_NOT_ARG' : \
+            'The command needs enable/disable keyword.\n' \
+            '\n' \
+            'Example:\n' \
+            '/users_add_bots enable\n' \
+            '/users_add_bots disable',
+        
         'USER_CANT_ADD_BOT' : \
             'This group don\'t allow users to invite and add Bots.\n' \
             '\n' \
