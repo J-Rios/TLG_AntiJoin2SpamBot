@@ -12,7 +12,7 @@ Creation date:
 Last modified date:
     19/04/2018
 Version:
-    1.4.1
+    1.4.2
 '''
 
 ####################################################################################################
@@ -752,9 +752,13 @@ def selfdestruct_messages(bot):
         for sent_msg in to_delete_messages_list:
             # If actual time is equal or more than the expected sent msg delete time
             if int(time()) >= sent_msg['delete_time']:
-                # Delete that sent message
-                bot.delete_message(chat_id=sent_msg['Chat_id'], message_id=sent_msg['Msg_id'])
-                to_delete_messages_list.remove(sent_msg)
+                # Try to delete that sent message if possible (still exists)
+                try:
+                    if bot.delete_message(sent_msg['Chat_id'], sent_msg['Msg_id']):
+                        to_delete_messages_list.remove(sent_msg)
+                except Exception as e:
+                    #print("Error: {}".format(e.message)) # i.e. "Message to delete not found"
+                    to_delete_messages_list.remove(sent_msg)
         # Wait 10s (release CPU usage)
         sleep(10)
 
