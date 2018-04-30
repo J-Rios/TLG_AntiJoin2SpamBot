@@ -65,7 +65,7 @@ TEXT = {
             '- Configuration and enable/disable commands just can be used by the group ' \
             'Administrators.\n' \
             '\n' \
-            '- You can change the language that I speake, using the command /language.\n' \
+            '- You can change the language that I speak, using the command /language.\n' \
             '\n' \
             '- Check /commands for get a list of all avaliable commands, and a short ' \
             'description of all of them.',
@@ -371,7 +371,7 @@ TEXT = {
             '/set_hours 24',
 
         'SET_HOURS_NOT_ARG' : \
-            'No se proporcionó ningún tiempo. Tienes que especificar cuántas horas quieres que '
+            'No se proporcionó ningún tiempo. Tienes que especificar cuántas horas quieres que ' \
             'un nuevo usuario deba esperar antes de poder publicar mensajes que contengan URLs.\n' \
             '\n' \
             'Ejemplo (5h o 24h):\n' \
