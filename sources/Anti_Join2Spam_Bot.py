@@ -10,9 +10,9 @@ Author:
 Creation date:
     04/04/2018
 Last modified date:
-    19/04/2018
+    30/04/2018
 Version:
-    1.4.2
+    1.4.3
 '''
 
 ####################################################################################################
@@ -40,6 +40,7 @@ files_users_list = []
 files_messages_list = []
 files_config_list = []
 to_delete_messages_list = []
+sent_antispam_messages_list = []
 
 ####################################################################################################
 
@@ -192,7 +193,7 @@ def get_chat_config(chat_id, param):
     return config_data[param]
 
 
-def register_new_user(chat_id, user_id, user_name, join_date):
+def register_new_user(chat_id, user_id, user_name, join_date, allow_user):
     '''Add new member to the users file'''
     # Default new user data
     user_data = OrderedDict( \
@@ -200,7 +201,8 @@ def register_new_user(chat_id, user_id, user_name, join_date):
         ('User_id', user_id), \
         ('User_name', user_name), \
         ('Join_date', join_date), \
-        ('Num_messages', 0) \
+        ('Num_messages', 0), \
+        ('Allow_user', allow_user) \
     ])
     # Get the chat users file and write the user data to it
     fjson_usr = get_chat_users_file(chat_id)
@@ -343,7 +345,7 @@ def new_user(bot, update):
                             bot.send_message(chat_id, bot_message)
                             register_user = False
             if register_user:
-                register_new_user(chat_id, join_user_id, join_user_name, join_date)
+                register_new_user(chat_id, join_user_id, join_user_name, join_date, False)
 
 
 def msg_nocmd(bot, update):
@@ -364,7 +366,7 @@ def msg_nocmd(bot, update):
         # If user not yet register, add to users file, else, get his number of published msgs
         if not user_in_json(chat_id, user_id):
             # Register user and set "Num_messages" and "Join_date" to allow publish URLs
-            register_new_user(chat_id, user_id, user_name, msg_date)
+            register_new_user(chat_id, user_id, user_name, msg_date, True)
             user_data = get_user(chat_id, user_id)
             user_data['Num_messages'] = num_messages_for_allow_urls
             user_data['Join_date'] = datetime(1971, 1, 1).strftime("%Y-%m-%d %H:%M:%S")
@@ -382,39 +384,72 @@ def msg_nocmd(bot, update):
                     # If there is any URL in the message
                     any_url = re.findall(CONST['REGEX_URLS'], text)
                     if any_url:
-                        num_published_messages = user_data['Num_messages']
-                        # Check user time in the group
-                        user_join_date = user_data['Join_date']
-                        user_join_date_dateTime = strptime(user_join_date, "%Y-%m-%d %H:%M:%S")
-                        msg_date_dateTime = strptime(msg_date, "%Y-%m-%d %H:%M:%S")
-                        t0 = mktime(user_join_date_dateTime) # Date to epoch
-                        t1 = mktime(msg_date_dateTime) # Date to epoch
-                        user_hours_in_group = (t1 - t0)/3600
-                        # If user is relatively new in the group or has not write enough messages
-                        if ((user_hours_in_group < time_for_allow_urls_h) or 
-                            (num_published_messages < num_messages_for_allow_urls)):
-                            # Decrease this message from the user messages count
-                            user_data['Num_messages'] = user_data['Num_messages'] - 1
-                            update_user(chat_id, user_data)
-                            # Delete user message and notify what happen
-                            bot.delete_message(chat_id=chat_id, message_id=msg_id)
-                            bot_msg_head = TEXT[lang]['MSG_SPAM_HEADER']
-                            bot_msg_0 = TEXT[lang]['MSG_SPAM_DETECTED_0'].format(user_name)
-                            bot_msg_1 = TEXT[lang]['MSG_SPAM_DETECTED_1'].format( \
-                                num_messages_for_allow_urls, time_for_allow_urls_h)
-                            bot_message = "{}{}{}".format(bot_msg_head, bot_msg_0, bot_msg_1)
-                            if call_admins_when_spam_detected:
-                                admins = get_admins_usernames_in_string(bot, chat_id)
-                                if admins:
-                                    bot_msg_2 = TEXT[lang]['CALLING_ADMINS'].format(admins)
-                                    bot_message = "{}{}".format(bot_message, bot_msg_2)
-                            bot.send_message(chat_id, bot_message)
+                         # If user does not have allowed to publish
+                        if user_data['Allow_user'] == False:
+                            num_published_messages = user_data['Num_messages']
+                            # Check user time in the group
+                            user_join_date = user_data['Join_date']
+                            user_join_date_dateTime = strptime(user_join_date, "%Y-%m-%d %H:%M:%S")
+                            msg_date_dateTime = strptime(msg_date, "%Y-%m-%d %H:%M:%S")
+                            t0 = mktime(user_join_date_dateTime) # Date to epoch
+                            t1 = mktime(msg_date_dateTime) # Date to epoch
+                            user_hours_in_group = (t1 - t0)/3600
+                            # If user is relatively new in the group or has not write enough msgs
+                            if ((user_hours_in_group < time_for_allow_urls_h) or 
+                                (num_published_messages < num_messages_for_allow_urls)):
+                                # Decrease this message from the user messages count
+                                user_data['Num_messages'] = user_data['Num_messages'] - 1
+                                update_user(chat_id, user_data)
+                                # Check if there was another spam messages in the chat from same
+                                # user, and remove it
+                                for antispam_msg in sent_antispam_messages_list:
+                                    if (antispam_msg['User_id'] == user_id) and \
+                                        (antispam_msg['Chat_id'] == chat_id):
+                                        # Try to delete that sent message if possible (still exists)
+                                        try:
+                                            if bot.delete_message(chat_id, antispam_msg['Msg_id']):
+                                                sent_antispam_messages_list.remove(antispam_msg)
+                                        except Exception as e:
+                                            sent_antispam_messages_list.remove(antispam_msg)
+                                # Delete user message and notify what happen
+                                bot.delete_message(chat_id, msg_id)
+                                bot_msg_head = TEXT[lang]['MSG_SPAM_HEADER']
+                                bot_msg_0 = TEXT[lang]['MSG_SPAM_DETECTED_0'].format(user_name)
+                                bot_msg_1 = TEXT[lang]['MSG_SPAM_DETECTED_1'].format( \
+                                    num_messages_for_allow_urls, time_for_allow_urls_h)
+                                bot_message = "{}{}{}".format(bot_msg_head, bot_msg_0, bot_msg_1)
+                                if call_admins_when_spam_detected:
+                                    admins = get_admins_usernames_in_string(bot, chat_id)
+                                    if admins:
+                                        bot_msg_2 = TEXT[lang]['CALLING_ADMINS'].format(admins)
+                                        bot_message = "{}{}".format(bot_message, bot_msg_2)
+                                sent_msg = bot.send_message(chat_id, bot_message, \
+                                    parse_mode=ParseMode.HTML)
+                                # Store sent anti-spam message in to delete list
+                                antispam_msg = OrderedDict( \
+                                [ \
+                                    ('User_id', user_id), \
+                                    ('Chat_id', chat_id), \
+                                    ('Msg_id', sent_msg.message_id), \
+                                    ('Msg_date', t1) \
+                                ])
+                                sent_antispam_messages_list.append(antispam_msg)
+                            # If the user is allowed to publish URLs
+                            else:
+                                # Give user permission
+                                user_data['Allow_user'] = True
+                                update_user(chat_id, user_data)
                 # Truncate the message text to 500 characters
                 if len(text) > 50:
                     text = text[0:50]
                     text = "{}...".format(text)
                 # Add the message to messages file
                 add_new_message(chat_id, msg_id, user_id, user_name, text, msg_date)
+        # Remove from list all messages from 5h ago or more
+        msg_date_epoch = mktime(strptime(msg_date, "%Y-%m-%d %H:%M:%S")) # Date string to epoch
+        for antispam_msg in sent_antispam_messages_list:
+            if msg_date_epoch - antispam_msg['Msg_date'] >= 40:
+                sent_antispam_messages_list.remove(antispam_msg)
 
 ####################################################################################################
 
