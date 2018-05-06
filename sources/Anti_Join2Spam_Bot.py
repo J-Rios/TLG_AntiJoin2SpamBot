@@ -10,9 +10,9 @@ Author:
 Creation date:
     04/04/2018
 Last modified date:
-    30/04/2018
+    06/05/2018
 Version:
-    1.4.3
+    1.5.0
 '''
 
 ####################################################################################################
@@ -226,7 +226,18 @@ def add_new_message(chat_id, msg_id, user_id, user_name, text, msg_date):
     fjson_msg.write_content(msg_data)
 
 
-def get_user(chat_id, user_id):
+def get_message(chat_id, msg_id):
+    '''Get message data of a chat by ID'''
+    fjson_msg = get_chat_messages_file(chat_id)
+    messages_data = fjson_msg.read_content()
+    for msg in messages_data:
+        if chat_id == msg['Chat_id']:
+            if msg_id == msg['Msg_id']:
+                return msg    
+    return None
+
+
+def get_user_from_id(chat_id, user_id):
     '''Get user data by member ID'''
     fjson_usr = get_chat_users_file(chat_id)
     users_data = fjson_usr.read_content()
@@ -236,14 +247,13 @@ def get_user(chat_id, user_id):
     return None
 
 
-def get_message(chat_id, msg_id):
-    '''Get message data of a chat by ID'''
-    fjson_msg = get_chat_messages_file(chat_id)
-    messages_data = fjson_msg.read_content()
-    for msg in messages_data:
-        if chat_id == msg['Chat_id']:
-            if msg_id == msg['Msg_id']:
-                return msg    
+def get_user_from_alias(chat_id, user_alias):
+    '''Get user from an alias'''
+    fjson_usr = get_chat_users_file(chat_id)
+    users_data = fjson_usr.read_content()
+    for usr in users_data:
+        if user_alias == usr['User_name']:
+            return usr
     return None
 
 
@@ -295,7 +305,10 @@ def bot_is_admin(bot, chat_id):
 def get_admins_usernames_in_string(bot, chat_id):
     '''Get all the group Administrators usernames/alias in a single line string separed by \' \''''
     admins = ""
-    group_admins = bot.get_chat_administrators(chat_id)
+    try:
+        group_admins = bot.get_chat_administrators(chat_id)
+    except:
+        return None
     for admin in group_admins:
         if admin.user.is_bot == False: # Ignore Bots
             if admins == "":
@@ -367,13 +380,13 @@ def msg_nocmd(bot, update):
         if not user_in_json(chat_id, user_id):
             # Register user and set "Num_messages" and "Join_date" to allow publish URLs
             register_new_user(chat_id, user_id, user_name, msg_date, True)
-            user_data = get_user(chat_id, user_id)
+            user_data = get_user_from_id(chat_id, user_id)
             user_data['Num_messages'] = num_messages_for_allow_urls
             user_data['Join_date'] = datetime(1971, 1, 1).strftime("%Y-%m-%d %H:%M:%S")
             update_user(chat_id, user_data)
         else:
             # Increase num messages count
-            user_data = get_user(chat_id, user_id)
+            user_data = get_user_from_id(chat_id, user_id)
             user_data['Num_messages'] = user_data['Num_messages'] + 1
             update_user(chat_id, user_data)
             # If it is a text message
@@ -384,7 +397,7 @@ def msg_nocmd(bot, update):
                     # If there is any URL in the message
                     any_url = re.findall(CONST['REGEX_URLS'], text)
                     if any_url:
-                         # If user does not have allowed to publish
+                        # If user does not have allowed to publish
                         if user_data['Allow_user'] == False:
                             num_published_messages = user_data['Num_messages']
                             # Check user time in the group
@@ -458,34 +471,46 @@ def msg_nocmd(bot, update):
 def cmd_start(bot, update):
     '''Command /start message handler'''
     chat_id = update.message.chat_id
+    chat_type = update.message.chat.type
     lang = get_chat_config(chat_id, 'Language')
-    tlg_msg_to_selfdestruct(bot, update.message)
-    tlg_send_selfdestruct_msg(bot, chat_id, TEXT[lang]['START'])
+    if chat_type == "private":
+        bot.send_message(chat_id, TEXT[lang]['START'])
+    else:
+        tlg_msg_to_selfdestruct(bot, update.message)
+        tlg_send_selfdestruct_msg(bot, chat_id, TEXT[lang]['START'])
 
 
 def cmd_help(bot, update):
     '''Command /help message handler'''
     chat_id = update.message.chat_id
+    chat_type = update.message.chat.type
     lang = get_chat_config(chat_id, 'Language')
     bot_msg = TEXT[lang]['HELP'].format(CONST['INIT_TIME_ALLOW_URLS'], \
         CONST['INIT_MIN_MSG_ALLOW_URLS'], CONST['T_DEL_MSG'])
-    tlg_msg_to_selfdestruct(bot, update.message)
-    tlg_send_selfdestruct_msg(bot, chat_id, bot_msg)
+    if chat_type == "private":
+        bot.send_message(chat_id, bot_msg)
+    else:
+        tlg_msg_to_selfdestruct(bot, update.message)
+        tlg_send_selfdestruct_msg(bot, chat_id, bot_msg)
 
 
 def cmd_commands(bot, update):
     '''Command /commands message handler'''
     chat_id = update.message.chat_id
+    chat_type = update.message.chat.type
     lang = get_chat_config(chat_id, 'Language')
-    tlg_msg_to_selfdestruct(bot, update.message)
-    tlg_send_selfdestruct_msg(bot, chat_id, TEXT[lang]['COMMANDS'])
+    if chat_type == "private":
+        bot.send_message(chat_id, TEXT[lang]['COMMANDS'])
+    else:
+        tlg_msg_to_selfdestruct(bot, update.message)
+        tlg_send_selfdestruct_msg(bot, chat_id, TEXT[lang]['COMMANDS'])
 
 
 def cmd_language(bot, update, args):
     '''Command /language message handler'''
     chat_id = update.message.chat_id
-    chat_type = update.message.chat.type
     user_id = update.message.from_user.id
+    chat_type = update.message.chat.type
     lang = get_chat_config(chat_id, 'Language')
     allow_command = True
     if chat_type != "private":
@@ -511,14 +536,18 @@ def cmd_language(bot, update, args):
         bot_msg = TEXT[lang]['CMD_NOT_ALLOW']
     else:
         bot_msg = TEXT[lang]['CAN_NOT_GET_ADMINS']
-    tlg_msg_to_selfdestruct(bot, update.message)
-    tlg_send_selfdestruct_msg(bot, chat_id, bot_msg)
+    if chat_type == "private":
+        bot.send_message(chat_id, bot_msg)
+    else:
+        tlg_msg_to_selfdestruct(bot, update.message)
+        tlg_send_selfdestruct_msg(bot, chat_id, bot_msg)
 
 
 def cmd_set_messages(bot, update, args):
     '''Command /set_messages message handler'''
     chat_id = update.message.chat_id
     user_id = update.message.from_user.id
+    chat_type = update.message.chat.type
     lang = get_chat_config(chat_id, 'Language')
     is_admin = user_is_admin(bot, user_id, chat_id)
     if is_admin == True:
@@ -539,14 +568,18 @@ def cmd_set_messages(bot, update, args):
         bot_msg = TEXT[lang]['CMD_NOT_ALLOW']
     else:
         bot_msg = TEXT[lang]['CAN_NOT_GET_ADMINS']
-    tlg_msg_to_selfdestruct(bot, update.message)
-    tlg_send_selfdestruct_msg(bot, chat_id, bot_msg)
+    if chat_type == "private":
+        bot.send_message(chat_id, bot_msg)
+    else:
+        tlg_msg_to_selfdestruct(bot, update.message)
+        tlg_send_selfdestruct_msg(bot, chat_id, bot_msg)
 
 
 def cmd_set_hours(bot, update, args):
     '''Command /set_hours message handler'''
     chat_id = update.message.chat_id
     user_id = update.message.from_user.id
+    chat_type = update.message.chat.type
     lang = get_chat_config(chat_id, 'Language')
     is_admin = user_is_admin(bot, user_id, chat_id)
     if is_admin == True:
@@ -567,13 +600,17 @@ def cmd_set_hours(bot, update, args):
         bot_msg = TEXT[lang]['CMD_NOT_ALLOW']
     else:
         bot_msg = TEXT[lang]['CAN_NOT_GET_ADMINS']
-    tlg_msg_to_selfdestruct(bot, update.message)
-    tlg_send_selfdestruct_msg(bot, chat_id, bot_msg)
+    if chat_type == "private":
+        bot.send_message(chat_id, bot_msg)
+    else:
+        tlg_msg_to_selfdestruct(bot, update.message)
+        tlg_send_selfdestruct_msg(bot, chat_id, bot_msg)
 
 
 def cmd_status(bot, update):
     '''Command /status message handler'''
     chat_id = update.message.chat_id
+    chat_type = update.message.chat.type
     lang = get_chat_config(chat_id, 'Language')
     enable = get_chat_config(chat_id, 'Antispam')
     num_messages_for_allow_urls = get_chat_config(chat_id, 'Num_messages_for_allow_urls')
@@ -582,8 +619,11 @@ def cmd_status(bot, update):
     allow_users_to_add_bots = get_chat_config(chat_id, 'Allow_users_to_add_bots')
     bot_msg = TEXT[lang]['STATUS'].format(num_messages_for_allow_urls, time_for_allow_urls_h, \
         call_admins_when_spam_detected, allow_users_to_add_bots, enable)
-    tlg_msg_to_selfdestruct(bot, update.message)
-    tlg_send_selfdestruct_msg(bot, chat_id, bot_msg)
+    if chat_type == "private":
+        bot.send_message(chat_id, bot_msg)
+    else:
+        tlg_msg_to_selfdestruct(bot, update.message)
+        tlg_send_selfdestruct_msg(bot, chat_id, bot_msg)
 
 
 def cmd_call_admins(bot, update):
@@ -591,7 +631,10 @@ def cmd_call_admins(bot, update):
     chat_id = update.message.chat_id
     lang = get_chat_config(chat_id, 'Language')
     admins = get_admins_usernames_in_string(bot, chat_id)
-    bot_msg = TEXT[lang]['CALLING_ADMINS'].format(admins)
+    if admins:
+        bot_msg = TEXT[lang]['CALLING_ADMINS'].format(admins)
+    else:
+        bot_msg = TEXT[lang]['CALLING_ADMINS_NO_ADMINS']
     bot.send_message(chat_id, bot_msg)
 
 
@@ -599,6 +642,7 @@ def cmd_call_when_spam(bot, update, args):
     '''Command /call_when_spam message handler'''
     chat_id = update.message.chat_id
     user_id = update.message.from_user.id
+    chat_type = update.message.chat.type
     lang = get_chat_config(chat_id, 'Language')
     call_admins_when_spam_detected = get_chat_config(chat_id, 'Call_admins_when_spam_detected')
     is_admin = user_is_admin(bot, user_id, chat_id)
@@ -630,14 +674,18 @@ def cmd_call_when_spam(bot, update, args):
         bot_msg = TEXT[lang]['CMD_NOT_ALLOW']
     else:
         bot_msg = TEXT[lang]['CAN_NOT_GET_ADMINS']
-    tlg_msg_to_selfdestruct(bot, update.message)
-    tlg_send_selfdestruct_msg(bot, chat_id, bot_msg)
+    if chat_type == "private":
+        bot.send_message(chat_id, bot_msg)
+    else:
+        tlg_msg_to_selfdestruct(bot, update.message)
+        tlg_send_selfdestruct_msg(bot, chat_id, bot_msg)
 
 
 def cmd_users_add_bots(bot, update, args):
     '''Command /users_add_bots message handler'''
     chat_id = update.message.chat_id
     user_id = update.message.from_user.id
+    chat_type = update.message.chat.type
     lang = get_chat_config(chat_id, 'Language')
     allow_users_to_add_bots = get_chat_config(chat_id, 'Allow_users_to_add_bots')
     is_admin = user_is_admin(bot, user_id, chat_id)
@@ -669,14 +717,51 @@ def cmd_users_add_bots(bot, update, args):
         bot_msg = TEXT[lang]['CMD_NOT_ALLOW']
     else:
         bot_msg = TEXT[lang]['CAN_NOT_GET_ADMINS']
-    tlg_msg_to_selfdestruct(bot, update.message)
-    tlg_send_selfdestruct_msg(bot, chat_id, bot_msg)
+    if chat_type == "private":
+        bot.send_message(chat_id, bot_msg)
+    else:
+        tlg_msg_to_selfdestruct(bot, update.message)
+        tlg_send_selfdestruct_msg(bot, chat_id, bot_msg)
+
+
+def cmd_allow_user(bot, update, args):
+    '''Command /allow_user message handler'''
+    chat_id = update.message.chat_id
+    user_id = update.message.from_user.id
+    lang = get_chat_config(chat_id, 'Language')
+    is_admin = user_is_admin(bot, user_id, chat_id)
+    if is_admin == True:
+        if len(args) >= 1:
+            user_alias = ""
+            for arg in args:
+                if user_alias == "":
+                    user_alias = arg
+                else:
+                    user_alias = "{} {}".format(user_alias, arg)
+            user_data = get_user_from_alias(chat_id, user_alias)
+            if user_data != None:
+                if user_data['Allow_user'] == False:
+                    user_data['Allow_user'] = True
+                    update_user(chat_id, user_data)
+                    bot_msg = TEXT[lang]['CMD_ALLOW_USR_OK'].format(user_alias)
+                else:
+                    bot_msg = TEXT[lang]['CMD_ALLOW_USR_ALREADY_ALLOWED'].format(user_alias)
+            else:
+                bot_msg = TEXT[lang]['CMD_ALLOW_USR_NOT_FOUND']
+        else:
+            bot_msg = TEXT[lang]['CMD_ALLOW_USR_NOT_ARG']
+    elif is_admin == False:
+        bot_msg = TEXT[lang]['CMD_NOT_ALLOW']
+    else:
+        bot_msg = TEXT[lang]['CAN_NOT_GET_ADMINS']
+    bot.send_message(chat_id, bot_msg)
 
 
 def cmd_enable(bot, update):
     '''Command /enable message handler'''
     chat_id = update.message.chat_id
     user_id = update.message.from_user.id
+    chat_type = update.message.chat.type
     lang = get_chat_config(chat_id, 'Language')
     enable = get_chat_config(chat_id, 'Antispam')
     is_admin = user_is_admin(bot, user_id, chat_id)
@@ -691,14 +776,18 @@ def cmd_enable(bot, update):
         bot_msg = TEXT[lang]['CMD_NOT_ALLOW']
     else:
         bot_msg = TEXT[lang]['CAN_NOT_GET_ADMINS']
-    tlg_msg_to_selfdestruct(bot, update.message)
-    tlg_send_selfdestruct_msg(bot, chat_id, bot_msg)
+    if chat_type == "private":
+        bot.send_message(chat_id, bot_msg)
+    else:
+        tlg_msg_to_selfdestruct(bot, update.message)
+        tlg_send_selfdestruct_msg(bot, chat_id, bot_msg)
 
 
 def cmd_disable(bot, update):
     '''Command /disable message handler'''
     chat_id = update.message.chat_id
     user_id = update.message.from_user.id
+    chat_type = update.message.chat.type
     lang = get_chat_config(chat_id, 'Language')
     enable = get_chat_config(chat_id, 'Antispam')
     is_admin = user_is_admin(bot, user_id, chat_id)
@@ -713,26 +802,37 @@ def cmd_disable(bot, update):
         bot_msg = TEXT[lang]['CMD_NOT_ALLOW']
     else:
         bot_msg = TEXT[lang]['CAN_NOT_GET_ADMINS']
-    tlg_msg_to_selfdestruct(bot, update.message)
-    tlg_send_selfdestruct_msg(bot, chat_id, bot_msg)
+    if chat_type == "private":
+        bot.send_message(chat_id, bot_msg)
+    else:
+        tlg_msg_to_selfdestruct(bot, update.message)
+        tlg_send_selfdestruct_msg(bot, chat_id, bot_msg)
 
 
 def cmd_version(bot, update):
     '''Command /version message handler'''
     chat_id = update.message.chat_id
+    chat_type = update.message.chat.type
     lang = get_chat_config(chat_id, 'Language')
     bot_msg = TEXT[lang]['VERSION'].format(CONST['VERSION'])
-    tlg_msg_to_selfdestruct(bot, update.message)
-    tlg_send_selfdestruct_msg(bot, chat_id, bot_msg)
+    if chat_type == "private":
+        bot.send_message(chat_id, bot_msg)
+    else:
+        tlg_msg_to_selfdestruct(bot, update.message)
+        tlg_send_selfdestruct_msg(bot, chat_id, bot_msg)
 
 
 def cmd_about(bot, update):
     '''Command /about handler'''
     chat_id = update.message.chat_id
+    chat_type = update.message.chat.type
     lang = get_chat_config(chat_id, 'Language')
     bot_msg = TEXT[lang]['ABOUT_MSG'].format(CONST['DEVELOPER'], CONST['REPOSITORY'])
-    tlg_msg_to_selfdestruct(bot, update.message)
-    tlg_send_selfdestruct_msg(bot, chat_id, bot_msg)
+    if chat_type == "private":
+        bot.send_message(chat_id, bot_msg)
+    else:
+        tlg_msg_to_selfdestruct(bot, update.message)
+        tlg_send_selfdestruct_msg(bot, chat_id, bot_msg)
 
 ####################################################################################################
 
@@ -825,6 +925,7 @@ def main():
     dp.add_handler(CommandHandler("call_admins", cmd_call_admins))
     dp.add_handler(CommandHandler("call_when_spam", cmd_call_when_spam, pass_args=True))
     dp.add_handler(CommandHandler("users_add_bots", cmd_users_add_bots, pass_args=True))
+    dp.add_handler(CommandHandler("allow_user", cmd_allow_user, pass_args=True))
     dp.add_handler(CommandHandler("enable", cmd_enable))
     dp.add_handler(CommandHandler("disable", cmd_disable))
     dp.add_handler(CommandHandler("version", cmd_version))
