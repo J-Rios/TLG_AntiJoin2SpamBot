@@ -305,18 +305,19 @@ def bot_is_admin(bot, chat_id):
 def get_admins_usernames_in_string(bot, chat_id):
     '''Get all the group Administrators usernames/alias in a single line string separed by \' \''''
     admins = ""
+    list_admins_names = list()
     try:
         group_admins = bot.get_chat_administrators(chat_id)
-        if group_admins:
-            group_admins = list(reversed(group_admins))
     except:
         return None
     for admin in group_admins:
         if admin.user.is_bot == False: # Ignore Bots
-            if admins == "":
-                admins = "@{}".format(admin.user.username)
-            else:
-                admins = "{}\n@{}".format(admins, admin.user.username)
+            list_admins_names.append(admin.user.username)
+    for admin_name in sorted(list_admins_names):
+        if admins == "":
+            admins = "@{}".format(admin_name)
+        else:
+            admins = "{}\n@{}".format(admins, admin_name)
     return admins
 
 ####################################################################################################
