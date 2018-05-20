@@ -10,9 +10,9 @@ Author:
 Creation date:
     04/04/2018
 Last modified date:
-    14/05/2018
+    20/05/2018
 Version:
-    1.5.1
+    1.5.2
 '''
 
 ####################################################################################################
@@ -307,6 +307,8 @@ def get_admins_usernames_in_string(bot, chat_id):
     admins = ""
     try:
         group_admins = bot.get_chat_administrators(chat_id)
+        if group_admins:
+            group_admins = list(reversed(group_admins))
     except:
         return None
     for admin in group_admins:
