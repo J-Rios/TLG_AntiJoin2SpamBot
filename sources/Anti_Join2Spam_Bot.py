@@ -10,9 +10,9 @@ Author:
 Creation date:
     04/04/2018
 Last modified date:
-    20/05/2018
+    22/07/2018
 Version:
-    1.5.2
+    1.6.0
 '''
 
 ####################################################################################################
@@ -41,6 +41,7 @@ files_messages_list = []
 files_config_list = []
 to_delete_messages_list = []
 sent_antispam_messages_list = []
+owner_notify = False
 
 ####################################################################################################
 
@@ -74,7 +75,7 @@ def initialize_resources():
     if not path.exists(CONST['DATA_DIR']):
         makedirs(CONST['DATA_DIR'])
     else:
-        # If directry data exists, check all subdirectories names (chats ID)
+        # If directory data exists, check all subdirectories names (chats ID)
         files = listdir(CONST['DATA_DIR'])
         if files:
             for f in files:
@@ -161,6 +162,7 @@ def get_default_config_data():
     '''Get default config data structure'''
     config_data = OrderedDict( \
     [ \
+        ('Title', CONST['INIT_TITLE']), \
         ('Language', CONST['INIT_LANG']), \
         ('Antispam', CONST['INIT_ENABLE']), \
         ('Time_for_allow_urls_h', CONST['INIT_TIME_ALLOW_URLS']), \
@@ -320,20 +322,50 @@ def get_admins_usernames_in_string(bot, chat_id):
             admins = "{}\n@{}".format(admins, admin_name)
     return admins
 
+
+def notify_all_chats(bot, message):
+    '''Publish a notify message in all the Chats where the Bot is'''
+    # If directory data exists, check all subdirectories names (chats ID)
+    chats_files = listdir(CONST['DATA_DIR'])
+    if chats_files:
+        for chat_id in chats_files:
+            # Don't publish in private chats
+            if chat_id[0] == '-':
+                bot.send_message(chat_id, message)
+
 ####################################################################################################
 
 ### Received Telegram not-command messages handlers ###
 
+def left_user(bot, update):
+    '''Member left the group event handler'''
+    chat_id = update.message.chat.id
+    message_id = update.message.message_id
+    left_user_name = "{} {}".format(update.message.from_user.first_name, \
+            update.message.from_user.last_name)
+    # Delete left message if the user name has an URL or is too long
+    has_url = re.findall(CONST['REGEX_URLS'], left_user_name)
+    if has_url:
+        bot.delete_message(chat_id, message_id)
+    else:
+        if len(left_user_name) > 30:
+            bot.delete_message(chat_id, message_id)
+
+
 def new_user(bot, update):
     '''New member join the group event handler'''
     chat_id = update.message.chat_id
+    message_id = update.message.message_id
     msg_from_user_id = update.message.from_user.id
     msg_from_user_name = update.message.from_user.name
     join_date = (update.message.date).now().strftime("%Y-%m-%d %H:%M:%S")
+    lang = get_chat_config(chat_id, 'Language')
     # For each new user that join or has been added
     for join_user in update.message.new_chat_members:
         join_user_id = join_user.id
-        join_user_name = join_user.name
+        join_user_alias = join_user.name
+        join_user_name = "{} {}".format(update.message.from_user.first_name, \
+            update.message.from_user.last_name)
         # If the added user is not myself (this Bot)
         if bot.id != join_user_id:
             register_user = True
@@ -347,11 +379,10 @@ def new_user(bot, update):
                         if get_chat_config(chat_id, 'Allow_users_to_add_bots') == False:
                             # Kick the Added Bot and notify
                             bot.kickChatMember(chat_id, join_user_id)
-                            lang = get_chat_config(chat_id, 'Language')
                             call_admins_when_spam_detected = get_chat_config(chat_id, \
                                 'Call_admins_when_spam_detected')
                             bot_msg_1 = TEXT[lang]['USER_CANT_ADD_BOT'].format(msg_from_user_name, \
-                                join_user_name)
+                                join_user_alias)
                             bot_message = bot_msg_1
                             if call_admins_when_spam_detected:
                                 admins = get_admins_usernames_in_string(bot, chat_id)
@@ -361,24 +392,55 @@ def new_user(bot, update):
                             bot.send_message(chat_id, bot_message)
                             register_user = False
             if register_user:
-                register_new_user(chat_id, join_user_id, join_user_name, join_date, False)
+                # Check if there is an URL in the user name
+                has_url = re.findall(CONST['REGEX_URLS'], join_user_name)
+                if has_url:
+                    bot.delete_message(chat_id, message_id)
+                    if len(join_user_name) > 10:
+                        join_user_name = join_user_name[0:10]
+                        join_user_name = "{}...".format(join_user_name)
+                    bot_message = TEXT[lang]['USER_URL_NAME_JOIN'].format(join_user_name)
+                    tlg_send_selfdestruct_msg(bot, chat_id, bot_message)
+                else:
+                    # Check if user name and last name are too long
+                    if len(join_user_name) > 30:
+                        bot.delete_message(chat_id, message_id)
+                        join_user_name = join_user_name[0:10]
+                        join_user_name = "{}...".format(join_user_name)
+                        bot_message = TEXT[lang]['USER_LONG_NAME_JOIN'].format(join_user_name)
+                        tlg_send_selfdestruct_msg(bot, chat_id, bot_message)
+                if len(join_user_alias) > 50:
+                    join_user_alias = join_user_alias[0:50]
+                    join_user_alias = "{}...".format(join_user_alias)
+                if not user_in_json(chat_id, join_user_id):
+                    register_new_user(chat_id, join_user_id, join_user_alias, join_date, False)
 
 
 def msg_nocmd(bot, update):
     '''All Not-command messages handler'''
+    chat_id = update.message.chat_id
     chat_type = update.message.chat.type
-    if chat_type != "private":
-        chat_id = update.message.chat_id
+    user_id = update.message.from_user.id
+    lang = get_chat_config(chat_id, 'Language')
+    if chat_type == "private":
+        if user_id == CONST['OWNER_ID']:
+            global owner_notify
+            if owner_notify == True:
+                message = update.message.text
+                notify_all_chats(bot, message)
+                owner_notify = False
+                bot.send_message(chat_id, TEXT[lang]['CMD_NOTIFY_ALL_OK'])
+    else:
+        chat_title = update.message.chat.title
         msg_id = update.message.message_id
-        user_id = update.message.from_user.id
         user_name = update.message.from_user.name
         msg_date = (update.message.date).now().strftime("%Y-%m-%d %H:%M:%S")
         text = update.message.text
-        lang = get_chat_config(chat_id, 'Language')
         enable = get_chat_config(chat_id, 'Antispam')
         time_for_allow_urls_h = get_chat_config(chat_id, 'Time_for_allow_urls_h')
         num_messages_for_allow_urls = get_chat_config(chat_id, 'Num_messages_for_allow_urls')
         call_admins_when_spam_detected = get_chat_config(chat_id, 'Call_admins_when_spam_detected')
+        save_config_property(chat_id, 'Title', chat_title)
         # If user not yet register, add to users file, else, get his number of published msgs
         if not user_in_json(chat_id, user_id):
             # Register user and set "Num_messages" and "Join_date" to allow publish URLs
@@ -812,6 +874,42 @@ def cmd_disable(bot, update):
         tlg_send_selfdestruct_msg(bot, chat_id, bot_msg)
 
 
+def cmd_notify_all_chats(bot, update):
+    '''Command /notify_all_chats message handler'''
+    global owner_notify
+    chat_id = update.message.chat_id
+    chat_type = update.message.chat.type
+    user_id = update.message.from_user.id
+    lang = get_chat_config(chat_id, 'Language')
+    if chat_type == "private":
+        if user_id == CONST['OWNER_ID']:
+            owner_notify = True
+            bot.send_message(chat_id, TEXT[lang]['CMD_NOTIFY_ALL'])
+        else:
+            bot.send_message(chat_id, TEXT[lang]['CMD_JUST_ALLOW_OWNER'])
+    else:
+        tlg_msg_to_selfdestruct(bot, update.message)
+        tlg_send_selfdestruct_msg(bot, chat_id, TEXT[lang]['CMD_JUST_ALLOW_IN_PRIVATE'])
+
+
+def cmd_notify_discard(bot, update):
+    '''Command /notify_discard message handler'''
+    global owner_notify
+    chat_id = update.message.chat_id
+    chat_type = update.message.chat.type
+    user_id = update.message.from_user.id
+    lang = get_chat_config(chat_id, 'Language')
+    if chat_type == "private":
+        if user_id == CONST['OWNER_ID']:
+            owner_notify = False
+            bot.send_message(chat_id, TEXT[lang]['CMD_NOTIFY_DISCARD'])
+        else:
+            bot.send_message(chat_id, TEXT[lang]['CMD_JUST_ALLOW_OWNER'])
+    else:
+        tlg_msg_to_selfdestruct(bot, update.message)
+        tlg_send_selfdestruct_msg(bot, chat_id, TEXT[lang]['CMD_JUST_ALLOW_IN_PRIVATE'])
+
+
 def cmd_version(bot, update):
     '''Command /version message handler'''
     chat_id = update.message.chat_id
@@ -830,7 +928,8 @@ def cmd_about(bot, update):
     chat_id = update.message.chat_id
     chat_type = update.message.chat.type
     lang = get_chat_config(chat_id, 'Language')
-    bot_msg = TEXT[lang]['ABOUT_MSG'].format(CONST['DEVELOPER'], CONST['REPOSITORY'])
+    bot_msg = TEXT[lang]['ABOUT_MSG'].format(CONST['DEVELOPER'], CONST['REPOSITORY'], \
+        CONST['DEV_PAYPAL'], CONST['DEV_BTC'])
     if chat_type == "private":
         bot.send_message(chat_id, bot_msg)
     else:
@@ -915,8 +1014,9 @@ def main():
     dp.add_handler(MessageHandler(Filters.text | Filters.photo | Filters.audio | Filters.voice | \
         Filters.video | Filters.sticker | Filters.document | Filters.location | Filters.contact, \
         msg_nocmd))
-    # Set to dispatcher a new member join the group event handler
+    # Set to dispatcher a new member join the group and member left the group events handlers
     dp.add_handler(MessageHandler(Filters.status_update.new_chat_members, new_user))
+    dp.add_handler(MessageHandler(Filters.status_update.left_chat_member, left_user))
     # Set to dispatcher all expected commands messages handler
     dp.add_handler(CommandHandler("start", cmd_start))
     dp.add_handler(CommandHandler("help", cmd_help))
@@ -931,6 +1031,8 @@ def main():
     dp.add_handler(CommandHandler("allow_user", cmd_allow_user, pass_args=True))
     dp.add_handler(CommandHandler("enable", cmd_enable))
     dp.add_handler(CommandHandler("disable", cmd_disable))
+    dp.add_handler(CommandHandler("notify_all_chats", cmd_notify_all_chats))
+    dp.add_handler(CommandHandler("notify_discard", cmd_notify_discard))
     dp.add_handler(CommandHandler("version", cmd_version))
     dp.add_handler(CommandHandler("about", cmd_about))
     # Launch the Bot ignoring pending messages (clean=True)
