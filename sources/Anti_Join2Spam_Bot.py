@@ -1,3 +1,4 @@
+#/usr/bin/python3
 # -*- coding: utf-8 -*-
 '''
 Script:
@@ -10,9 +11,9 @@ Author:
 Creation date:
     04/04/2018
 Last modified date:
-    22/07/2018
+    25/07/2018
 Version:
-    1.6.0
+    1.6.1
 '''
 
 ####################################################################################################
@@ -163,6 +164,7 @@ def get_default_config_data():
     config_data = OrderedDict( \
     [ \
         ('Title', CONST['INIT_TITLE']), \
+        ('Link', CONST['INIT_LINK']), \
         ('Language', CONST['INIT_LANG']), \
         ('Antispam', CONST['INIT_ENABLE']), \
         ('Time_for_allow_urls_h', CONST['INIT_TIME_ALLOW_URLS']), \
@@ -331,7 +333,10 @@ def notify_all_chats(bot, message):
         for chat_id in chats_files:
             # Don't publish in private chats
             if chat_id[0] == '-':
-                bot.send_message(chat_id, message)
+                try:
+                    bot.send_message(chat_id, message)
+                except Exception as e:
+                    print("Error: {}".format(str(e)))
 
 ####################################################################################################
 
@@ -418,20 +423,26 @@ def new_user(bot, update):
 
 def msg_nocmd(bot, update):
     '''All Not-command messages handler'''
+    global owner_notify
     chat_id = update.message.chat_id
     chat_type = update.message.chat.type
     user_id = update.message.from_user.id
     lang = get_chat_config(chat_id, 'Language')
     if chat_type == "private":
         if user_id == CONST['OWNER_ID']:
-            global owner_notify
             if owner_notify == True:
+                owner_notify = False
                 message = update.message.text
                 notify_all_chats(bot, message)
-                owner_notify = False
                 bot.send_message(chat_id, TEXT[lang]['CMD_NOTIFY_ALL_OK'])
     else:
         chat_title = update.message.chat.title
+        if chat_title:
+            save_config_property(chat_id, 'Title', chat_title)
+        chat_link = update.message.chat.username
+        if chat_link:
+            chat_link = '@{}'.format(chat_link)
+            save_config_property(chat_id, 'Link', chat_link)
         msg_id = update.message.message_id
         user_name = update.message.from_user.name
         msg_date = (update.message.date).now().strftime("%Y-%m-%d %H:%M:%S")
@@ -440,7 +451,6 @@ def msg_nocmd(bot, update):
         time_for_allow_urls_h = get_chat_config(chat_id, 'Time_for_allow_urls_h')
         num_messages_for_allow_urls = get_chat_config(chat_id, 'Num_messages_for_allow_urls')
         call_admins_when_spam_detected = get_chat_config(chat_id, 'Call_admins_when_spam_detected')
-        save_config_property(chat_id, 'Title', chat_title)
         # If user not yet register, add to users file, else, get his number of published msgs
         if not user_in_json(chat_id, user_id):
             # Register user and set "Num_messages" and "Join_date" to allow publish URLs
@@ -883,8 +893,11 @@ def cmd_notify_all_chats(bot, update):
     lang = get_chat_config(chat_id, 'Language')
     if chat_type == "private":
         if user_id == CONST['OWNER_ID']:
-            owner_notify = True
-            bot.send_message(chat_id, TEXT[lang]['CMD_NOTIFY_ALL'])
+            if owner_notify == False:
+                owner_notify = True
+                bot.send_message(chat_id, TEXT[lang]['CMD_NOTIFY_ALL'])
+            else:
+                bot.send_message(chat_id, TEXT[lang]['CMD_NOTIFYING'])
         else:
             bot.send_message(chat_id, TEXT[lang]['CMD_JUST_ALLOW_OWNER'])
     else:
@@ -901,8 +914,11 @@ def cmd_notify_discard(bot, update):
     lang = get_chat_config(chat_id, 'Language')
     if chat_type == "private":
         if user_id == CONST['OWNER_ID']:
-            owner_notify = False
-            bot.send_message(chat_id, TEXT[lang]['CMD_NOTIFY_DISCARD'])
+            if owner_notify == True:
+                owner_notify = False
+                bot.send_message(chat_id, TEXT[lang]['CMD_NOTIFY_DISCARD'])
+            else:
+                bot.send_message(chat_id, TEXT[lang]['CMD_NOTIFY_CANT_DISCARD'])
         else:
             bot.send_message(chat_id, TEXT[lang]['CMD_JUST_ALLOW_OWNER'])
     else:
