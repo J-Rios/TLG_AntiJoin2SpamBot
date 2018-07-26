@@ -11,9 +11,9 @@ Author:
 Creation date:
     04/04/2018
 Last modified date:
-    25/07/2018
+    27/07/2018
 Version:
-    1.6.1
+    1.6.2
 '''
 
 ####################################################################################################
@@ -89,6 +89,12 @@ def initialize_resources():
                 # Restore last configurations properties of the chat
                 config_file = OrderedDict([('ID', f), ('File', get_chat_config_file(f))])
                 files_config_list.append(config_file)
+                # Create default configuration file if it does not exists
+                config_file_path = '{}/{}/{}'.format(CONST['DATA_DIR'], f, CONST['F_CONF'])
+                if not path.exists(config_file_path):
+                    default_conf = get_default_config_data()
+                    for key, value in default_conf.items():
+                        save_config_property(f, key, value)
 
 
 def get_chat_users_file(chat_id):
