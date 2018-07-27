@@ -4,8 +4,8 @@
 Script:
     Anti_Join2Spam_Bot.py
 Description:
-    Telegram Bot that figth against the spammer users that join groups to spam their annoying and 
-    unwanted info.
+    Telegram Bot that figths against the spammer users that join groups to publish their annoying 
+    and unwanted info.
 Author:
     Jose Rios Rubio
 Creation date:
@@ -13,7 +13,7 @@ Creation date:
 Last modified date:
     27/07/2018
 Version:
-    1.6.2
+    1.6.3
 '''
 
 ####################################################################################################
@@ -453,6 +453,8 @@ def msg_nocmd(bot, update):
         user_name = update.message.from_user.name
         msg_date = (update.message.date).now().strftime("%Y-%m-%d %H:%M:%S")
         text = update.message.text
+        if text == None:
+            text = update.message.caption_html
         enable = get_chat_config(chat_id, 'Antispam')
         time_for_allow_urls_h = get_chat_config(chat_id, 'Time_for_allow_urls_h')
         num_messages_for_allow_urls = get_chat_config(chat_id, 'Num_messages_for_allow_urls')
