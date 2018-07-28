@@ -11,9 +11,9 @@ Author:
 Creation date:
     04/04/2018
 Last modified date:
-    27/07/2018
+    28/07/2018
 Version:
-    1.6.3
+    1.6.4
 '''
 
 ####################################################################################################
@@ -505,15 +505,21 @@ def msg_nocmd(bot, update):
                                         try:
                                             if bot.delete_message(chat_id, antispam_msg['Msg_id']):
                                                 sent_antispam_messages_list.remove(antispam_msg)
-                                        except Exception as e:
+                                        except:
                                             sent_antispam_messages_list.remove(antispam_msg)
                                 # Delete user message and notify what happen
-                                bot.delete_message(chat_id, msg_id)
                                 bot_msg_head = TEXT[lang]['MSG_SPAM_HEADER']
-                                bot_msg_0 = TEXT[lang]['MSG_SPAM_DETECTED_0'].format(user_name)
-                                bot_msg_1 = TEXT[lang]['MSG_SPAM_DETECTED_1'].format( \
-                                    num_messages_for_allow_urls, time_for_allow_urls_h)
-                                bot_message = "{}{}{}".format(bot_msg_head, bot_msg_0, bot_msg_1)
+                                try:
+                                    if bot.delete_message(chat_id, msg_id):
+                                        bot_msg_0 = TEXT[lang]['MSG_SPAM_DETECTED_0'].format( \
+                                            user_name)
+                                        bot_msg_1 = TEXT[lang]['MSG_SPAM_DETECTED_1'].format( \
+                                            num_messages_for_allow_urls, time_for_allow_urls_h)
+                                        bot_message = "{}{}{}".format(bot_msg_head, bot_msg_0, \
+                                            bot_msg_1)
+                                except:
+                                    bot_message = "{}{}".format(bot_msg_head, \
+                                        TEXT[lang]['MSG_SPAM_DETECTED_CANT_REMOVE'])
                                 if call_admins_when_spam_detected:
                                     admins = get_admins_usernames_in_string(bot, chat_id)
                                     if admins:
