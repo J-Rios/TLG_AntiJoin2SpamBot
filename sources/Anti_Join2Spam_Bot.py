@@ -11,9 +11,9 @@ Author:
 Creation date:
     04/04/2018
 Last modified date:
-    28/07/2018
+    29/07/2018
 Version:
-    1.6.4
+    1.6.5
 '''
 
 ####################################################################################################
@@ -342,7 +342,7 @@ def notify_all_chats(bot, message):
                 try:
                     bot.send_message(chat_id, message)
                 except Exception as e:
-                    print("Error: {}".format(str(e)))
+                    print("Error publishing in {}:\n{}".format(chat_id, str(e)))
 
 ####################################################################################################
 
@@ -356,12 +356,14 @@ def left_user(bot, update):
             update.message.from_user.last_name)
     # Delete left message if the user name has an URL or is too long
     has_url = re.findall(CONST['REGEX_URLS'], left_user_name)
-    if has_url:
-        bot.delete_message(chat_id, message_id)
-    else:
-        if len(left_user_name) > 30:
+    try:
+        if has_url:
             bot.delete_message(chat_id, message_id)
-
+        else:
+            if len(left_user_name) > 30:
+                bot.delete_message(chat_id, message_id)
+    except:
+        pass
 
 def new_user(bot, update):
     '''New member join the group event handler'''
@@ -389,36 +391,50 @@ def new_user(bot, update):
                         # If not allow users to add Bots
                         if get_chat_config(chat_id, 'Allow_users_to_add_bots') == False:
                             # Kick the Added Bot and notify
-                            bot.kickChatMember(chat_id, join_user_id)
+                            try:
+                                bot.kickChatMember(chat_id, join_user_id)
+                                bot_message = TEXT[lang]['USER_CANT_ADD_BOT'].format \
+                                    (msg_from_user_name, join_user_alias)
+                            except Exception as e:
+                                if str(e) == "Not enough rights to restrict/unrestrict chat member":
+                                    bot_message = TEXT[lang]['USER_CANT_ADD_BOT_CANT_KICK'].format \
+                                        (msg_from_user_name, join_user_alias)
                             call_admins_when_spam_detected = get_chat_config(chat_id, \
                                 'Call_admins_when_spam_detected')
-                            bot_msg_1 = TEXT[lang]['USER_CANT_ADD_BOT'].format(msg_from_user_name, \
-                                join_user_alias)
-                            bot_message = bot_msg_1
                             if call_admins_when_spam_detected:
                                 admins = get_admins_usernames_in_string(bot, chat_id)
                                 if admins:
-                                    bot_msg_2 = TEXT[lang]['CALLING_ADMINS'].format(admins)
-                                    bot_message = "{}{}".format(bot_message, bot_msg_2)
+                                    bot_msg_2_append = TEXT[lang]['CALLING_ADMINS'].format(admins)
+                                    bot_message = "{}{}".format(bot_message, bot_msg_2_append)
                             bot.send_message(chat_id, bot_message)
                             register_user = False
             if register_user:
                 # Check if there is an URL in the user name
                 has_url = re.findall(CONST['REGEX_URLS'], join_user_name)
                 if has_url:
-                    bot.delete_message(chat_id, message_id)
                     if len(join_user_name) > 10:
                         join_user_name = join_user_name[0:10]
                         join_user_name = "{}...".format(join_user_name)
-                    bot_message = TEXT[lang]['USER_URL_NAME_JOIN'].format(join_user_name)
+                    try:
+                        bot.delete_message(chat_id, message_id)
+                        bot_message = TEXT[lang]['USER_URL_NAME_JOIN'].format(join_user_name)
+                    except Exception as e:
+                        if str(e) == "Message can't be deleted":
+                            bot_message = TEXT[lang]['USER_URL_NAME_JOIN_CANT_REMOVE'].format( \
+                                join_user_name)
                     tlg_send_selfdestruct_msg(bot, chat_id, bot_message)
                 else:
                     # Check if user name and last name are too long
                     if len(join_user_name) > 30:
-                        bot.delete_message(chat_id, message_id)
                         join_user_name = join_user_name[0:10]
                         join_user_name = "{}...".format(join_user_name)
-                        bot_message = TEXT[lang]['USER_LONG_NAME_JOIN'].format(join_user_name)
+                        try:
+                            bot.delete_message(chat_id, message_id)
+                            bot_message = TEXT[lang]['USER_LONG_NAME_JOIN'].format(join_user_name)
+                        except Exception as e:
+                            if str(e) == "Message can't be deleted":
+                                bot_message = TEXT[lang]['USER_LONG_NAME_JOIN_CANT_REMOVE']. \
+                                    format(join_user_name)
                         tlg_send_selfdestruct_msg(bot, chat_id, bot_message)
                 if len(join_user_alias) > 50:
                     join_user_alias = join_user_alias[0:50]
@@ -464,7 +480,7 @@ def msg_nocmd(bot, update):
             # Register user and set "Num_messages" and "Join_date" to allow publish URLs
             register_new_user(chat_id, user_id, user_name, msg_date, True)
             user_data = get_user_from_id(chat_id, user_id)
-            user_data['Num_messages'] = num_messages_for_allow_urls
+            user_data['Num_messages'] = num_messages_for_allow_urls + 1
             user_data['Join_date'] = datetime(1971, 1, 1).strftime("%Y-%m-%d %H:%M:%S")
             update_user(chat_id, user_data)
         else:
@@ -492,7 +508,7 @@ def msg_nocmd(bot, update):
                             user_hours_in_group = (t1 - t0)/3600
                             # If user is relatively new in the group or has not write enough msgs
                             if ((user_hours_in_group < time_for_allow_urls_h) or 
-                                (num_published_messages < num_messages_for_allow_urls)):
+                                (num_published_messages < num_messages_for_allow_urls + 1)):
                                 # Decrease this message from the user messages count
                                 user_data['Num_messages'] = user_data['Num_messages'] - 1
                                 update_user(chat_id, user_data)
@@ -517,9 +533,10 @@ def msg_nocmd(bot, update):
                                             num_messages_for_allow_urls, time_for_allow_urls_h)
                                         bot_message = "{}{}{}".format(bot_msg_head, bot_msg_0, \
                                             bot_msg_1)
-                                except:
-                                    bot_message = "{}{}".format(bot_msg_head, \
-                                        TEXT[lang]['MSG_SPAM_DETECTED_CANT_REMOVE'])
+                                except Exception as e:
+                                    if str(e) == "Message can't be deleted":
+                                        bot_message = "{}{}".format(bot_msg_head, \
+                                            TEXT[lang]['MSG_SPAM_DETECTED_CANT_REMOVE'])
                                 if call_admins_when_spam_detected:
                                     admins = get_admins_usernames_in_string(bot, chat_id)
                                     if admins:
@@ -1023,8 +1040,7 @@ def selfdestruct_messages(bot):
                 try:
                     if bot.delete_message(sent_msg['Chat_id'], sent_msg['Msg_id']):
                         to_delete_messages_list.remove(sent_msg)
-                except Exception as e:
-                    #print("Error: {}".format(e.message)) # i.e. "Message to delete not found"
+                except:
                     to_delete_messages_list.remove(sent_msg)
         # Wait 10s (release CPU usage)
         sleep(10)
