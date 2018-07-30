@@ -11,9 +11,9 @@ Author:
 Creation date:
     04/04/2018
 Last modified date:
-    29/07/2018
+    30/07/2018
 Version:
-    1.6.5
+    1.6.6
 '''
 
 ####################################################################################################
@@ -418,11 +418,12 @@ def new_user(bot, update):
                     try:
                         bot.delete_message(chat_id, message_id)
                         bot_message = TEXT[lang]['USER_URL_NAME_JOIN'].format(join_user_name)
+                        tlg_send_selfdestruct_msg(bot, chat_id, bot_message)
                     except Exception as e:
                         if str(e) == "Message can't be deleted":
                             bot_message = TEXT[lang]['USER_URL_NAME_JOIN_CANT_REMOVE'].format( \
                                 join_user_name)
-                    tlg_send_selfdestruct_msg(bot, chat_id, bot_message)
+                            bot.send_message(chat_id, bot_message)
                 else:
                     # Check if user name and last name are too long
                     if len(join_user_name) > 30:
@@ -431,11 +432,12 @@ def new_user(bot, update):
                         try:
                             bot.delete_message(chat_id, message_id)
                             bot_message = TEXT[lang]['USER_LONG_NAME_JOIN'].format(join_user_name)
+                            tlg_send_selfdestruct_msg(bot, chat_id, bot_message)
                         except Exception as e:
                             if str(e) == "Message can't be deleted":
                                 bot_message = TEXT[lang]['USER_LONG_NAME_JOIN_CANT_REMOVE']. \
                                     format(join_user_name)
-                        tlg_send_selfdestruct_msg(bot, chat_id, bot_message)
+                                bot.send_message(chat_id, bot_message)
                 if len(join_user_alias) > 50:
                     join_user_alias = join_user_alias[0:50]
                     join_user_alias = "{}...".format(join_user_alias)
