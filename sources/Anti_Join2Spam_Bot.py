@@ -11,9 +11,9 @@ Author:
 Creation date:
     04/04/2018
 Last modified date:
-    30/07/2018
+    31/07/2018
 Version:
-    1.6.6
+    1.6.7
 '''
 
 ####################################################################################################
@@ -55,6 +55,8 @@ def signal_handler(signal, frame):
         chat_users_file['File'].lock.acquire()
     for chat_messages_file in files_messages_list:
         chat_messages_file['File'].lock.acquire()
+    for chat_config_file in files_config_list:
+        chat_config_file['File'].lock.acquire()
     # Close the program
     sys.exit(0)
 
@@ -69,9 +71,6 @@ signal.signal(signal.SIGINT, signal_handler)  # SIGINT (Ctrl+C) to signal_handle
 
 def initialize_resources():
     '''Initialize resources by populating files list with chats found files'''
-    global files_users_list
-    global files_messages_list
-    global files_config_list
     # Create data directory if it does not exists
     if not path.exists(CONST['DATA_DIR']):
         makedirs(CONST['DATA_DIR'])
@@ -79,22 +78,24 @@ def initialize_resources():
         # If directory data exists, check all subdirectories names (chats ID)
         files = listdir(CONST['DATA_DIR'])
         if files:
-            for f in files:
+            for f_chat_id in files:
                 # Populate users files list
-                users_file = OrderedDict([('ID', f), ('File', get_chat_users_file(f))])
-                files_users_list.append(users_file)
+                file_path = '{}/{}/{}'.format(CONST['DATA_DIR'], f_chat_id, CONST['F_USERS'])
+                files_users_list.append(OrderedDict([('ID', f_chat_id), \
+                    ('File', TSjson.TSjson(file_path))]))
                 # Populate messages files list
-                messages_file = OrderedDict([('ID', f), ('File', get_chat_messages_file(f))])
-                files_messages_list.append(messages_file)
-                # Restore last configurations properties of the chat
-                config_file = OrderedDict([('ID', f), ('File', get_chat_config_file(f))])
-                files_config_list.append(config_file)
+                file_path = '{}/{}/{}'.format(CONST['DATA_DIR'], f_chat_id, CONST['F_MSG'])
+                files_messages_list.append(OrderedDict([('ID', f_chat_id), \
+                    ('File', TSjson.TSjson(file_path))]))
+                # Populate config files list
+                file_path = '{}/{}/{}'.format(CONST['DATA_DIR'], f_chat_id, CONST['F_CONF'])
+                files_config_list.append(OrderedDict([('ID', f_chat_id), \
+                    ('File', TSjson.TSjson(file_path))]))
                 # Create default configuration file if it does not exists
-                config_file_path = '{}/{}/{}'.format(CONST['DATA_DIR'], f, CONST['F_CONF'])
-                if not path.exists(config_file_path):
+                if not path.exists(file_path):
                     default_conf = get_default_config_data()
                     for key, value in default_conf.items():
-                        save_config_property(f, key, value)
+                        save_config_property(f_chat_id, key, value)
 
 
 def get_chat_users_file(chat_id):
@@ -123,7 +124,6 @@ def get_chat_users_file(chat_id):
 def get_chat_messages_file(chat_id):
     '''Determine chat msgs file from the list by ID. Get the file if exists or create it if not'''
     file = OrderedDict([('ID', chat_id), ('File', None)])
-    file = {'ID': chat_id, 1: 7.8}
     found = False
     if files_messages_list:
         for chat_file in files_messages_list:
@@ -1015,7 +1015,7 @@ def tlg_send_selfdestruct_msg_in(bot, chat_id, message, time_delete_min):
 
 
 def tlg_msg_to_selfdestruct_in(bot, message, time_delete_min):
-    '''Add a telegram message to be auto-delete in specified time''' 
+    '''Add a telegram message to be auto-delete in specified time'''
     # Get sent message ID and delete time
     chat_id = message.chat_id
     msg_id = message.message_id
@@ -1032,7 +1032,6 @@ def tlg_msg_to_selfdestruct_in(bot, message, time_delete_min):
 
 def selfdestruct_messages(bot):
     '''Handle remove messages sent by the Bot with the timed self-delete function'''
-    global to_delete_messages_list
     while True:
         # Check each Bot sent message
         for sent_msg in to_delete_messages_list:
