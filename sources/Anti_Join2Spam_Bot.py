@@ -11,9 +11,9 @@ Author:
 Creation date:
     04/04/2018
 Last modified date:
-    31/07/2018
+    01/08/2018
 Version:
-    1.6.7
+    1.6.8
 '''
 
 ####################################################################################################
@@ -25,7 +25,7 @@ import signal
 import TSjson
 from os import path, makedirs, listdir
 from datetime import datetime, timedelta
-from time import time, sleep, strptime, mktime
+from time import time, sleep, strptime, mktime, strftime
 from threading import Thread, Lock
 from Constants import CONST, TEXT
 from operator import itemgetter
@@ -35,6 +35,9 @@ from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, Regex
                          ConversationHandler, CallbackQueryHandler
 
 ####################################################################################################
+
+### Debug Flag ###
+DEBUG = False
 
 ### Globals ###
 files_users_list = []
@@ -49,7 +52,7 @@ owner_notify = False
 ### Termination signals handler for program process ###
 def signal_handler(signal, frame):
     '''Termination signals (SIGINT, SIGTERM) handler for program process'''
-    print('Closing the program, safe way...')
+    debug_print("Closing the program, safe way...")
     # Acquire all messages and users files mutex to ensure not read/write operation on them
     for chat_users_file in files_users_list:
         chat_users_file['File'].lock.acquire()
@@ -64,6 +67,15 @@ def signal_handler(signal, frame):
 ### Signals attachment ###
 signal.signal(signal.SIGTERM, signal_handler) # SIGTERM (kill pid) to signal_handler
 signal.signal(signal.SIGINT, signal_handler)  # SIGINT (Ctrl+C) to signal_handler
+
+####################################################################################################
+
+### Debug print ###
+def debug_print(text):
+    '''Function to print text just when DEBUG flag is active'''
+    if DEBUG:
+        actual_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        print("[{}] - {}".format(actual_time, text))
 
 ####################################################################################################
 
@@ -318,7 +330,8 @@ def get_admins_usernames_in_string(bot, chat_id):
     list_admins_names = list()
     try:
         group_admins = bot.get_chat_administrators(chat_id)
-    except:
+    except Exception as e:
+        debug_print("Exception when checking Admins of {} - {}".format(chat_id, str(e)))
         return None
     for admin in group_admins:
         if admin.user.is_bot == False: # Ignore Bots
@@ -342,7 +355,7 @@ def notify_all_chats(bot, message):
                 try:
                     bot.send_message(chat_id, message)
                 except Exception as e:
-                    print("Error publishing in {}:\n{}".format(chat_id, str(e)))
+                    debug_print("Exception when publishing in {} - {}".format(chat_id, str(e)))
 
 ####################################################################################################
 
@@ -352,8 +365,8 @@ def left_user(bot, update):
     '''Member left the group event handler'''
     chat_id = update.message.chat.id
     message_id = update.message.message_id
-    left_user_name = "{} {}".format(update.message.from_user.first_name, \
-            update.message.from_user.last_name)
+    user = update.message.left_chat_member
+    left_user_name = "{} {}".format(user.first_name, user.last_name)
     # Delete left message if the user name has an URL or is too long
     has_url = re.findall(CONST['REGEX_URLS'], left_user_name)
     try:
@@ -364,6 +377,7 @@ def left_user(bot, update):
                 bot.delete_message(chat_id, message_id)
     except:
         pass
+
 
 def new_user(bot, update):
     '''New member join the group event handler'''
@@ -381,7 +395,7 @@ def new_user(bot, update):
             update.message.from_user.last_name)
         # If the added user is not myself (this Bot)
         if bot.id != join_user_id:
-            register_user = True
+            to_register_user = True
             # If the message user source is not the join user, it has been invited/added by another
             if msg_from_user_id != join_user_id:
                 # If the member that has been join the group is a Bot
@@ -391,11 +405,16 @@ def new_user(bot, update):
                         # If not allow users to add Bots
                         if get_chat_config(chat_id, 'Allow_users_to_add_bots') == False:
                             # Kick the Added Bot and notify
+                            debug_print("An user has added a Bot.\n  (Chat) - ({}).".format( \
+                                chat_id))
                             try:
                                 bot.kickChatMember(chat_id, join_user_id)
                                 bot_message = TEXT[lang]['USER_CANT_ADD_BOT'].format \
                                     (msg_from_user_name, join_user_alias)
+                                debug_print("Added Bot successfully kicked.\n  (Chat) - ({}).". \
+                                    format(chat_id))
                             except Exception as e:
+                                debug_print("Exception when kicking a Bot - {}".format(str(e)))
                                 if str(e) == "Not enough rights to restrict/unrestrict chat member":
                                     bot_message = TEXT[lang]['USER_CANT_ADD_BOT_CANT_KICK'].format \
                                         (msg_from_user_name, join_user_alias)
@@ -407,19 +426,25 @@ def new_user(bot, update):
                                     bot_msg_2_append = TEXT[lang]['CALLING_ADMINS'].format(admins)
                                     bot_message = "{}{}".format(bot_message, bot_msg_2_append)
                             bot.send_message(chat_id, bot_message)
-                            register_user = False
-            if register_user:
+                            to_register_user = False
+            if to_register_user:
                 # Check if there is an URL in the user name
                 has_url = re.findall(CONST['REGEX_URLS'], join_user_name)
                 if has_url:
+                    debug_print("Spammer (URL name) join detected.\n  (Chat) - ({}).".format( \
+                        chat_id))
                     if len(join_user_name) > 10:
                         join_user_name = join_user_name[0:10]
                         join_user_name = "{}...".format(join_user_name)
                     try:
                         bot.delete_message(chat_id, message_id)
                         bot_message = TEXT[lang]['USER_URL_NAME_JOIN'].format(join_user_name)
+                        debug_print("Spammer (URL name) join message successfully removed.\n" \
+                            "  (Chat) - ({}).".format(chat_id))
                         tlg_send_selfdestruct_msg(bot, chat_id, bot_message)
                     except Exception as e:
+                        debug_print("Exception when deleting a Spammer (URL name) join " \
+                            "message - {}".format(str(e)))
                         if str(e) == "Message can't be deleted":
                             bot_message = TEXT[lang]['USER_URL_NAME_JOIN_CANT_REMOVE'].format( \
                                 join_user_name)
@@ -432,8 +457,12 @@ def new_user(bot, update):
                         try:
                             bot.delete_message(chat_id, message_id)
                             bot_message = TEXT[lang]['USER_LONG_NAME_JOIN'].format(join_user_name)
+                            debug_print("Spammer (long name) join message successfully removed.\n" \
+                                "  (Chat) - ({}).".format(chat_id))
                             tlg_send_selfdestruct_msg(bot, chat_id, bot_message)
                         except Exception as e:
+                            debug_print("Exception when deleting a Spammer (long name) join " \
+                                "message - {}".format(str(e)))
                             if str(e) == "Message can't be deleted":
                                 bot_message = TEXT[lang]['USER_LONG_NAME_JOIN_CANT_REMOVE']. \
                                     format(join_user_name)
@@ -511,6 +540,8 @@ def msg_nocmd(bot, update):
                             # If user is relatively new in the group or has not write enough msgs
                             if ((user_hours_in_group < time_for_allow_urls_h) or 
                                 (num_published_messages < num_messages_for_allow_urls + 1)):
+                                debug_print("Spam message detected.\n  (Chat, User, Message) - " \
+                                    "({}, {}, {}).".format(chat_id, user_name, user_id))
                                 # Decrease this message from the user messages count
                                 user_data['Num_messages'] = user_data['Num_messages'] - 1
                                 update_user(chat_id, user_data)
@@ -523,7 +554,13 @@ def msg_nocmd(bot, update):
                                         try:
                                             if bot.delete_message(chat_id, antispam_msg['Msg_id']):
                                                 sent_antispam_messages_list.remove(antispam_msg)
-                                        except:
+                                                debug_print("Previous Spam message successfully " \
+                                                    "removed.\n  (Chat, User, Message) - " \
+                                                    "({}, {}, {}).".format(chat_id, user_name, \
+                                                    user_id))
+                                        except Exception as e:
+                                            debug_print("Exception when deleting a previous Spam " \
+                                                "message from an user - {}".format(str(e)))
                                             sent_antispam_messages_list.remove(antispam_msg)
                                 # Delete user message and notify what happen
                                 bot_msg_head = TEXT[lang]['MSG_SPAM_HEADER']
@@ -535,7 +572,12 @@ def msg_nocmd(bot, update):
                                             num_messages_for_allow_urls, time_for_allow_urls_h)
                                         bot_message = "{}{}{}".format(bot_msg_head, bot_msg_0, \
                                             bot_msg_1)
+                                        debug_print("Spam message successfully removed.\n  " \
+                                            "(Chat, User, Message) - ({}, {}, {}).".format( \
+                                            chat_id, user_name, user_id))
                                 except Exception as e:
+                                    debug_print("Exception when deleting an Spam message - {}". \
+                                        format(str(e)))
                                     if str(e) == "Message can't be deleted":
                                         bot_message = "{}{}".format(bot_msg_head, \
                                             TEXT[lang]['MSG_SPAM_DETECTED_CANT_REMOVE'])
@@ -1003,7 +1045,7 @@ def tlg_send_selfdestruct_msg_in(bot, chat_id, message, time_delete_min):
     sent_msg = bot.send_message(chat_id, message)
     # If has been succesfully sent
     if sent_msg:
-        # Get sent message ID and delete time
+        # Get sent message ID and calculate delete time
         msg_id = sent_msg.message_id
         destroy_time = int(time()) + int(time_delete_min*60)
         # Add sent message data to to-delete messages list
@@ -1012,22 +1054,24 @@ def tlg_send_selfdestruct_msg_in(bot, chat_id, message, time_delete_min):
         sent_msg_data['Msg_id'] = msg_id
         sent_msg_data['delete_time'] = destroy_time
         to_delete_messages_list.append(sent_msg_data)
+        debug_print("Sent message has been set to selfdestruct.\n  (Chat, Msg, When) - " \
+            "({}, {}, {}).".format(chat_id, msg_id, (destroy_time-int(time()))/60))
 
 
 def tlg_msg_to_selfdestruct_in(bot, message, time_delete_min):
     '''Add a telegram message to be auto-delete in specified time'''
-    # Get sent message ID and delete time
+    # Get sent message ID and calculate delete time
     chat_id = message.chat_id
     msg_id = message.message_id
     destroy_time = int(time()) + int(time_delete_min*60)
-    # Check if the Bot is Admin
-    if bot_is_admin(bot, chat_id) == True:
-        # Add sent message data to to-delete messages list
-        sent_msg_data = OrderedDict([('Chat_id', None), ('Msg_id', None), ('delete_time', None)])
-        sent_msg_data['Chat_id'] = chat_id
-        sent_msg_data['Msg_id'] = msg_id
-        sent_msg_data['delete_time'] = destroy_time
-        to_delete_messages_list.append(sent_msg_data)
+    # Add sent message data to to-delete messages list
+    sent_msg_data = OrderedDict([('Chat_id', None), ('Msg_id', None), ('delete_time', None)])
+    sent_msg_data['Chat_id'] = chat_id
+    sent_msg_data['Msg_id'] = msg_id
+    sent_msg_data['delete_time'] = destroy_time
+    to_delete_messages_list.append(sent_msg_data)
+    debug_print("Chat message has been set to selfdestruct.\n  (Chat, Msg, When) - " \
+        "({}, {}, {}).".format(chat_id, msg_id, destroy_time))
 
 
 def selfdestruct_messages(bot):
@@ -1038,10 +1082,15 @@ def selfdestruct_messages(bot):
             # If actual time is equal or more than the expected sent msg delete time
             if int(time()) >= sent_msg['delete_time']:
                 # Try to delete that sent message if possible (still exists)
+                debug_print("Time accomplished for delete message.\n  (Chat, Msg) - ({}, {}).". \
+                    format(sent_msg['Chat_id'], sent_msg['Msg_id']))
+                debug_print("Trying to remove it...")
                 try:
                     if bot.delete_message(sent_msg['Chat_id'], sent_msg['Msg_id']):
                         to_delete_messages_list.remove(sent_msg)
+                        debug_print("Message successfully removed.")
                 except:
+                    debug_print("Fail - Can't delete message.")
                     to_delete_messages_list.remove(sent_msg)
         # Wait 10s (release CPU usage)
         sleep(10)
@@ -1053,6 +1102,7 @@ def selfdestruct_messages(bot):
 def main():
     '''Main Function'''
     # Initialize resources by populating files list and configs with chats found files
+    debug_print("Launching Bot...")
     initialize_resources()
     # Create an event handler (updater) for a Bot with the given Token and get the dispatcher
     updater = Updater(CONST['TOKEN'])
@@ -1083,6 +1133,7 @@ def main():
     dp.add_handler(CommandHandler("version", cmd_version))
     dp.add_handler(CommandHandler("about", cmd_about))
     # Launch the Bot ignoring pending messages (clean=True)
+    debug_print("Bot started.")
     updater.start_polling(clean=True)
     # Handle self-messages delete
     selfdestruct_messages(updater.bot)
