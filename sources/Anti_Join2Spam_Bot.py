@@ -545,11 +545,9 @@ def msg_nocmd(bot, update):
         msg_date = (update.message.date).now().strftime("%Y-%m-%d %H:%M:%S")
         text = update.message.text
         if text == None:
-            if "caption_html" in update.message:
-                text = update.message.caption_html
-            else:
-                if "caption" in update.message:
-                    text = update.message.caption
+            text = getattr(update.message, "caption_html", None)
+            if text == None:
+                text = getattr(update.message, "caption", None)
         enable = get_chat_config(chat_id, 'Antispam')
         time_for_allow_urls_h = get_chat_config(chat_id, 'Time_for_allow_urls_h')
         num_messages_for_allow_urls = get_chat_config(chat_id, 'Num_messages_for_allow_urls')
