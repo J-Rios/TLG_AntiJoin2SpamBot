@@ -13,7 +13,7 @@ Creation date:
 Last modified date:
     12/08/2018
 Version:
-    1.6.9
+    1.7.0
 '''
 
 ####################################################################################################
@@ -71,11 +71,21 @@ signal.signal(signal.SIGINT, signal_handler)  # SIGINT (Ctrl+C) to signal_handle
 ####################################################################################################
 
 ### Debug print ###
+
 def debug_print(text):
     '''Function to print text just when DEBUG flag is active'''
     if DEBUG:
         actual_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         print("[{}] - {}".format(actual_time, text))
+
+
+def debug_print_tlg(bot, text):
+    '''Function to send text message to TLG chat just when DEBUG flag is active'''
+    if DEBUG:
+        try:
+            bot.send_message(CONST['DEBUG_TO_CHAT'], text)
+        except:
+            pass
 
 ####################################################################################################
 
@@ -472,6 +482,40 @@ def new_user(bot, update):
                     join_user_alias = "{}...".format(join_user_alias)
                 if not user_in_json(chat_id, join_user_id):
                     register_new_user(chat_id, join_user_id, join_user_alias, join_date, False)
+        # The Anti-Spam Bot has been added to a group
+        else:
+            # Get the language of the Telegram client software that the Admin that has added the Bot to
+            # assume this is the chat language and configure Bot language
+            admin_language = update.message.from_user.language_code[0:2]
+            if admin_language == 'es':
+                lang = 'ES'
+                save_config_property(chat_id, 'Language', lang)
+            else:
+                lang = 'EN'
+                save_config_property(chat_id, 'Language', lang)
+            # Notify to Bot Owner that the Bot has been added to a group
+            notify_msg = "The Bot has been added to a new group:\n\n"
+            notify_msg = "{}- ID: {}\n".format(notify_msg, chat_id)
+            chat_title = update.message.chat.title
+            if chat_title:
+                save_config_property(chat_id, 'Title', chat_title)
+                notify_msg = "{}- Title: {}\n".format(notify_msg, chat_title)
+            else:
+                notify_msg = "{}- Title: Unknown\n".format(notify_msg)
+            chat_link = update.message.chat.username
+            if chat_link:
+                chat_link = '@{}'.format(chat_link)
+                save_config_property(chat_id, 'Link', chat_link)
+                notify_msg = "{}- Link: {}\n".format(notify_msg, chat_link)
+            else:
+                notify_msg = "{}- Link: Unknown\n".format(notify_msg)
+            admin_name = update.message.from_user.name
+            admin_id = update.message.from_user.id
+            notify_msg = "{}- Admin: {} [{}]".format(notify_msg, admin_name, admin_id)
+            debug_print_tlg(bot, notify_msg)
+            # Send bot join message
+            bot_message = TEXT[lang]['ANTI-SPAM_BOT_ADDED_TO_GROUP']
+            bot.send_message(chat_id, bot_message)
 
 
 def msg_nocmd(bot, update):
