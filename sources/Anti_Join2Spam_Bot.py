@@ -11,9 +11,9 @@ Author:
 Creation date:
     04/04/2018
 Last modified date:
-    01/08/2018
+    12/08/2018
 Version:
-    1.6.8
+    1.6.9
 '''
 
 ####################################################################################################
@@ -501,7 +501,11 @@ def msg_nocmd(bot, update):
         msg_date = (update.message.date).now().strftime("%Y-%m-%d %H:%M:%S")
         text = update.message.text
         if text == None:
-            text = update.message.caption_html
+            if "caption_html" in update.message:
+                text = update.message.caption_html
+            else:
+                if "caption" in update.message:
+                    text = update.message.caption
         enable = get_chat_config(chat_id, 'Antispam')
         time_for_allow_urls_h = get_chat_config(chat_id, 'Time_for_allow_urls_h')
         num_messages_for_allow_urls = get_chat_config(chat_id, 'Num_messages_for_allow_urls')
