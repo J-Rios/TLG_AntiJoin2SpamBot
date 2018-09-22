@@ -1,5 +1,6 @@
-#/usr/bin/python3
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+
 '''
 Script:
     Anti_Join2Spam_Bot.py
@@ -11,9 +12,9 @@ Author:
 Creation date:
     04/04/2018
 Last modified date:
-    12/08/2018
+    13/09/2018
 Version:
-    1.7.0
+    1.7.1
 '''
 
 ####################################################################################################
@@ -435,7 +436,7 @@ def new_user(bot, update):
                                 if admins:
                                     bot_msg_2_append = TEXT[lang]['CALLING_ADMINS'].format(admins)
                                     bot_message = "{}{}".format(bot_message, bot_msg_2_append)
-                            bot.send_message(chat_id, bot_message)
+                            tlg_send_selfdestruct_msg(bot, chat_id, bot_message)
                             to_register_user = False
             if to_register_user:
                 # Check if there is an URL in the user name
@@ -634,6 +635,7 @@ def msg_nocmd(bot, update):
                                         bot_message = "{}{}".format(bot_message, bot_msg_2)
                                 sent_msg = bot.send_message(chat_id, bot_message, \
                                     parse_mode=ParseMode.HTML)
+                                tlg_msg_to_selfdestruct(bot, sent_msg)
                                 # Store sent anti-spam message in to delete list
                                 antispam_msg = OrderedDict( \
                                 [ \
