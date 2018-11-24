@@ -2,6 +2,8 @@
 
 Telegram Bot that figth against the spammer users that join groups to spam their annoying and unwanted info.
 
+Important Notice: The Bot account @The_Anti_Join2Spam_Bot has been closed and has stopped working. The Bot was being hosted by the developer and was offered free for use in any telegram group, however, the Bot has reach more than 600 groups and that starts to affect the Bot functionality (response time) due to low resources of the host machine (and I can't afford to spend more money for a better host). Remember that it is an open-source Bot and anyone can get the source code, host it and create a new telegram account for it.
+
 -------------------------------------------------------------------------------------------------------------------------
 
 ## How to install, setup and execute the Bot:
