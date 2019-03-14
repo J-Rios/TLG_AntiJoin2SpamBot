@@ -110,18 +110,19 @@ def initialize_resources():
         # Check all subdirectories names (chats ID)
         files = listdir(CONST['DATA_DIR'])
         if files:
+            if 'groups.json' in files:
+                files.remove('groups.json')
             for f_chat_id in files:
-                file_path = '{}/{}'.format(CONST['DATA_DIR'], f_chat_id)
                 # Populate users files list
-                file_path = '{}/{}'.format(file_path, CONST['F_USERS'])
+                file_path = '{}/{}/{}'.format(CONST['DATA_DIR'], f_chat_id, CONST['F_USERS'])
                 files_users_list.append(OrderedDict([('ID', f_chat_id), \
                     ('File', TSjson.TSjson(file_path))]))
                 # Populate messages files list
-                file_path = '{}/{}'.format(file_path, CONST['F_MSG'])
+                file_path = '{}/{}/{}'.format(CONST['DATA_DIR'], f_chat_id, CONST['F_MSG'])
                 files_messages_list.append(OrderedDict([('ID', f_chat_id), \
                     ('File', TSjson.TSjson(file_path))]))
                 # Populate config files list
-                file_path = '{}/{}'.format(file_path, CONST['F_CONF'])
+                file_path = '{}/{}/{}'.format(CONST['DATA_DIR'], f_chat_id, CONST['F_CONF'])
                 files_config_list.append(OrderedDict([('ID', f_chat_id), \
                     ('File', TSjson.TSjson(file_path))]))
                 # Create default configuration file if it does not exists
