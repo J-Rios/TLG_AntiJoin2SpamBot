@@ -101,6 +101,8 @@ TEXT = {
             'This group is not allowed to use me, if you want to get authorization, ask to ' \
             'Bot owner.\n' \
             '\n' \
+            'Actual chat ID: {}\n' \
+            '\n' \
             'I\'m going to left the group, bye bye :p',
 
         'CMD_NOT_ALLOW' : \
@@ -459,6 +461,8 @@ TEXT = {
             '\n' \
             'Este grupo no esta autorizado para utilizarme, si quieres tener permiso para ello, ' \
             'preguntale al propietario del Bot.\n' \
+            '\n' \
+            'Chat ID actual: {}\n' \
             '\n' \
             'Salgo del grupo, bye bye :p',
 

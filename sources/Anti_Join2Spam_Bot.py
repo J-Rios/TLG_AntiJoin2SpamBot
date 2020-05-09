@@ -588,9 +588,10 @@ def new_user(update: Update, context: CallbackContext):
                 else:
                     notify_msg = "{}- Link: Unknown\n".format(notify_msg)
                 notify_msg = "{}- Admin: {} [{}]".format(notify_msg, admin_name, admin_id)
+                debug_print(notify_msg)
                 debug_print_tlg(bot, notify_msg)
                 # Bot message
-                bot_message = TEXT[lang]['ANTI-SPAM_BOT_ADDED_TO_GROUP_NOT_ALLOW']
+                bot_message = TEXT[lang]['ANTI-SPAM_BOT_ADDED_TO_GROUP_NOT_ALLOW'].format(chat_id)
                 bot.send_message(chat_id, bot_message)
                 # Launch Bot leave group thread
                 thread = Thread(target=bot_leave_chat, args=(bot, chat_id))
