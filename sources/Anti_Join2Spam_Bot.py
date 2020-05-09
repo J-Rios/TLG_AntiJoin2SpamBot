@@ -12,9 +12,9 @@ Author:
 Creation date:
     04/04/2018
 Last modified date:
-    25/11/2018
+    09/05/2020
 Version:
-    1.8.0p
+    1.9.0p
 '''
 
 ####################################################################################################
@@ -31,9 +31,8 @@ from threading import Thread, Lock
 from Constants import CONST, TEXT
 from operator import itemgetter
 from collections import OrderedDict
-from telegram import MessageEntity, ParseMode, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, RegexHandler, \
-                         ConversationHandler, CallbackQueryHandler
+from telegram import (Update, ParseMode)
+from telegram.ext import (CallbackContext, Updater, CommandHandler, MessageHandler, Filters)
 
 ####################################################################################################
 
@@ -423,8 +422,9 @@ def bot_leave_chat(bot, chat_id):
 
 ### Received Telegram not-command messages handlers ###
 
-def left_user(bot, update):
+def left_user(update: Update, context: CallbackContext):
     '''Member left the group event handler'''
+    bot = context.bot
     chat_id = update.message.chat.id
     if chat_id in allowed_groups:
         message_id = update.message.message_id
@@ -442,8 +442,9 @@ def left_user(bot, update):
             pass
 
 
-def new_user(bot, update):
+def new_user(update: Update, context: CallbackContext):
     '''New member join the group event handler'''
+    bot = context.bot
     chat_id = update.message.chat_id
     message_id = update.message.message_id
     msg_from_user_id = update.message.from_user.id
@@ -597,9 +598,10 @@ def new_user(bot, update):
                 thread.start()
 
 
-def msg_nocmd(bot, update):
+def msg_nocmd(update: Update, context: CallbackContext):
     '''All Not-command messages handler'''
     global owner_notify
+    bot = context.bot
     chat_id = update.message.chat_id
     if chat_id in allowed_groups:
         chat_type = update.message.chat.type
@@ -745,8 +747,9 @@ def msg_nocmd(bot, update):
 
 ### Received Telegram command messages handlers ###
 
-def cmd_start(bot, update):
+def cmd_start(update: Update, context: CallbackContext):
     '''Command /start message handler'''
+    bot = context.bot
     chat_id = update.message.chat_id
     if chat_id in allowed_groups:
         chat_type = update.message.chat.type
@@ -758,8 +761,9 @@ def cmd_start(bot, update):
             tlg_send_selfdestruct_msg(bot, chat_id, TEXT[lang]['START'])
 
 
-def cmd_help(bot, update):
+def cmd_help(update: Update, context: CallbackContext):
     '''Command /help message handler'''
+    bot = context.bot
     chat_id = update.message.chat_id
     if chat_id in allowed_groups:
         chat_type = update.message.chat.type
@@ -773,8 +777,9 @@ def cmd_help(bot, update):
             tlg_send_selfdestruct_msg(bot, chat_id, bot_msg)
 
 
-def cmd_commands(bot, update):
+def cmd_commands(update: Update, context: CallbackContext):
     '''Command /commands message handler'''
+    bot = context.bot
     chat_id = update.message.chat_id
     if chat_id in allowed_groups:
         chat_type = update.message.chat.type
@@ -786,8 +791,10 @@ def cmd_commands(bot, update):
             tlg_send_selfdestruct_msg(bot, chat_id, TEXT[lang]['COMMANDS'])
 
 
-def cmd_language(bot, update, args):
+def cmd_language(update: Update, context: CallbackContext):
     '''Command /language message handler'''
+    bot = context.bot
+    args = context.args
     chat_id = update.message.chat_id
     if chat_id in allowed_groups:
         user_id = update.message.from_user.id
@@ -824,8 +831,10 @@ def cmd_language(bot, update, args):
             tlg_send_selfdestruct_msg(bot, chat_id, bot_msg)
 
 
-def cmd_set_messages(bot, update, args):
+def cmd_set_messages(update: Update, context: CallbackContext):
     '''Command /set_messages message handler'''
+    bot = context.bot
+    args = context.args
     chat_id = update.message.chat_id
     if chat_id in allowed_groups:
         user_id = update.message.from_user.id
@@ -857,8 +866,10 @@ def cmd_set_messages(bot, update, args):
             tlg_send_selfdestruct_msg(bot, chat_id, bot_msg)
 
 
-def cmd_set_hours(bot, update, args):
+def cmd_set_hours(update: Update, context: CallbackContext):
     '''Command /set_hours message handler'''
+    bot = context.bot
+    args = context.args
     chat_id = update.message.chat_id
     if chat_id in allowed_groups:
         user_id = update.message.from_user.id
@@ -890,8 +901,9 @@ def cmd_set_hours(bot, update, args):
             tlg_send_selfdestruct_msg(bot, chat_id, bot_msg)
 
 
-def cmd_status(bot, update):
+def cmd_status(update: Update, context: CallbackContext):
     '''Command /status message handler'''
+    bot = context.bot
     chat_id = update.message.chat_id
     if chat_id in allowed_groups:
         chat_type = update.message.chat.type
@@ -910,8 +922,9 @@ def cmd_status(bot, update):
             tlg_send_selfdestruct_msg(bot, chat_id, bot_msg)
 
 
-def cmd_call_admins(bot, update):
+def cmd_call_admins(update: Update, context: CallbackContext):
     '''Command /call_admins message handler'''
+    bot = context.bot
     chat_id = update.message.chat_id
     if chat_id in allowed_groups:
         lang = get_chat_config(chat_id, 'Language')
@@ -923,8 +936,10 @@ def cmd_call_admins(bot, update):
         bot.send_message(chat_id, bot_msg)
 
 
-def cmd_call_when_spam(bot, update, args):
+def cmd_call_when_spam(update: Update, context: CallbackContext):
     '''Command /call_when_spam message handler'''
+    bot = context.bot
+    args = context.args
     chat_id = update.message.chat_id
     if chat_id in allowed_groups:
         user_id = update.message.from_user.id
@@ -967,8 +982,10 @@ def cmd_call_when_spam(bot, update, args):
             tlg_send_selfdestruct_msg(bot, chat_id, bot_msg)
 
 
-def cmd_users_add_bots(bot, update, args):
+def cmd_users_add_bots(update: Update, context: CallbackContext):
     '''Command /users_add_bots message handler'''
+    bot = context.bot
+    args = context.args
     chat_id = update.message.chat_id
     if chat_id in allowed_groups:
         user_id = update.message.from_user.id
@@ -1011,8 +1028,10 @@ def cmd_users_add_bots(bot, update, args):
             tlg_send_selfdestruct_msg(bot, chat_id, bot_msg)
 
 
-def cmd_allow_user(bot, update, args):
+def cmd_allow_user(update: Update, context: CallbackContext):
     '''Command /allow_user message handler'''
+    bot = context.bot
+    args = context.args
     chat_id = update.message.chat_id
     if chat_id in allowed_groups:
         user_id = update.message.from_user.id
@@ -1045,8 +1064,10 @@ def cmd_allow_user(bot, update, args):
         bot.send_message(chat_id, bot_msg)
 
 
-def cmd_add_group(bot, update, args):
+def cmd_add_group(update: Update, context: CallbackContext):
     '''Command /add_group message handler'''
+    bot = context.bot
+    args = context.args
     chat_id = update.message.chat_id
     user_id = update.message.from_user.id
     if user_id == CONST['OWNER_ID']:
@@ -1068,8 +1089,9 @@ def cmd_add_group(bot, update, args):
     bot.send_message(chat_id, bot_msg)
 
 
-def cmd_enable(bot, update):
+def cmd_enable(update: Update, context: CallbackContext):
     '''Command /enable message handler'''
+    bot = context.bot
     chat_id = update.message.chat_id
     if chat_id in allowed_groups:
         user_id = update.message.from_user.id
@@ -1095,8 +1117,9 @@ def cmd_enable(bot, update):
             tlg_send_selfdestruct_msg(bot, chat_id, bot_msg)
 
 
-def cmd_disable(bot, update):
+def cmd_disable(update: Update, context: CallbackContext):
     '''Command /disable message handler'''
+    bot = context.bot
     chat_id = update.message.chat_id
     if chat_id in allowed_groups:
         user_id = update.message.from_user.id
@@ -1122,9 +1145,10 @@ def cmd_disable(bot, update):
             tlg_send_selfdestruct_msg(bot, chat_id, bot_msg)
 
 
-def cmd_notify_all_chats(bot, update):
+def cmd_notify_all_chats(update: Update, context: CallbackContext):
     '''Command /notify_all_chats message handler'''
     global owner_notify
+    bot = context.bot
     chat_id = update.message.chat_id
     chat_type = update.message.chat.type
     user_id = update.message.from_user.id
@@ -1143,9 +1167,10 @@ def cmd_notify_all_chats(bot, update):
         tlg_send_selfdestruct_msg(bot, chat_id, TEXT[lang]['CMD_JUST_ALLOW_IN_PRIVATE'])
 
 
-def cmd_notify_discard(bot, update):
+def cmd_notify_discard(update: Update, context: CallbackContext):
     '''Command /notify_discard message handler'''
     global owner_notify
+    bot = context.bot
     chat_id = update.message.chat_id
     chat_type = update.message.chat.type
     user_id = update.message.from_user.id
@@ -1164,8 +1189,9 @@ def cmd_notify_discard(bot, update):
         tlg_send_selfdestruct_msg(bot, chat_id, TEXT[lang]['CMD_JUST_ALLOW_IN_PRIVATE'])
 
 
-def cmd_version(bot, update):
+def cmd_version(update: Update, context: CallbackContext):
     '''Command /version message handler'''
+    bot = context.bot
     chat_id = update.message.chat_id
     if chat_id in allowed_groups:
         chat_type = update.message.chat.type
@@ -1178,8 +1204,9 @@ def cmd_version(bot, update):
             tlg_send_selfdestruct_msg(bot, chat_id, bot_msg)
 
 
-def cmd_about(bot, update):
+def cmd_about(update: Update, context: CallbackContext):
     '''Command /about handler'''
+    bot = context.bot
     chat_id = update.message.chat_id
     chat_type = update.message.chat.type
     lang = get_chat_config(chat_id, 'Language')
@@ -1269,15 +1296,8 @@ def main():
     debug_print("Launching Bot...")
     initialize_resources()
     # Create an event handler (updater) for a Bot with the given Token and get the dispatcher
-    updater = Updater(CONST['TOKEN'])
+    updater = Updater(CONST["TOKEN"], use_context=True)
     dp = updater.dispatcher
-    # Set to dispatcher a not-command messages handler
-    dp.add_handler(MessageHandler(Filters.text | Filters.photo | Filters.audio | Filters.voice | \
-        Filters.video | Filters.sticker | Filters.document | Filters.location | Filters.contact, \
-        msg_nocmd))
-    # Set to dispatcher a new member join the group and member left the group events handlers
-    dp.add_handler(MessageHandler(Filters.status_update.new_chat_members, new_user))
-    dp.add_handler(MessageHandler(Filters.status_update.left_chat_member, left_user))
     # Set to dispatcher all expected commands messages handler
     dp.add_handler(CommandHandler("start", cmd_start))
     dp.add_handler(CommandHandler("help", cmd_help))
@@ -1297,9 +1317,16 @@ def main():
     dp.add_handler(CommandHandler("notify_discard", cmd_notify_discard))
     dp.add_handler(CommandHandler("version", cmd_version))
     dp.add_handler(CommandHandler("about", cmd_about))
-    # Launch the Bot ignoring pending messages (clean=True)
+    # Set to dispatcher a not-command messages handler
+    dp.add_handler(MessageHandler(Filters.text | Filters.photo | Filters.audio | Filters.voice | \
+        Filters.video | Filters.sticker | Filters.document | Filters.location | Filters.contact, \
+        msg_nocmd))
+    # Set to dispatcher a new member join the group and member left the group events handlers
+    dp.add_handler(MessageHandler(Filters.status_update.new_chat_members, new_user))
+    dp.add_handler(MessageHandler(Filters.status_update.left_chat_member, left_user))
+    # Launch the Bot ignoring pending messages (clean=True) and get all updates (allowed_uptades=[])
+    updater.start_polling(clean=True, allowed_updates=[])
     debug_print("Bot started.")
-    updater.start_polling(clean=True)
     # Handle self-messages delete
     selfdestruct_messages(updater.bot)
 
