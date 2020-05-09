@@ -1,57 +1,61 @@
 # TLG_AntiJoin2SpamBot
 
-Telegram Bot that figth against the spammer users that join groups to spam their annoying and unwanted info.
-
-Important Notice: The Bot account @The_Anti_Join2Spam_Bot has been closed and has stopped working. The Bot was being hosted by the developer and was offered free for use in any telegram group, however, the Bot has reach more than 600 groups and that starts to affect the Bot functionality (response time) due to low resources of the host machine (and I can't afford to spend more money for a better host). Remember that it is an open-source Bot and anyone can get the source code, host it and create a new telegram account for it.
+Telegram Bot that figths against spammer users who joins groups to spam their annoying and unwanted info.
 
 -------------------------------------------------------------------------------------------------------------------------
 
-## How to install, setup and execute the Bot:
+## How to install, setup and execute the Bot
 
-1 - Install Python3 and their tools:
-```
-sudo -i
-apt-get install python3
-apt-get install python3-pip
-pip3 install --upgrade pip
-pip3 install --upgrade setuptools
-```
+1. Install Python3 and their tools:
 
-2 - Install python-telegram-bot library using python3-pip tool:
-```
-pip3 install python-telegram-bot --upgrade
-exit
-```
+    ```bash
+    sudo -i
+    apt-get install python3
+    apt-get install python3-pip
+    pip3 install --upgrade pip
+    pip3 install --upgrade setuptools
+    ```
 
-3 - Download Bot repository and go inside sources directory:
-```git clone https://github.com/J-Rios/TLG_AntiJoin2SpamBot
-cd TLG_AntiJoin2SpamBot/sources
-```
+2. Install python-telegram-bot library using python3-pip tool:
 
-4 - Change the TOKEN line of Constants file to set the TOKEN of your Bot account (from @BotFather):
-```
-nano Constants.py
-[Change this line -> 'TOKEN' : 'XXXXXXXXX:XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX']
-```
+    ```bash
+    pip install -r requirements.txt
+    exit
+    ```
 
-5 - Run the Bot:
-```
-A - Run it at normal:
-	python3 Anti_Join2Spam_Bot.py
+3. Download Bot repository and go inside sources directory:
 
-B - Run it in background and unassociated to actual tty (preserve execution when terminal/console is closed):
-	nohup python3 Anti_Join2Spam_Bot.py &
-```
+    ```bash
+    git clone https://github.com/J-Rios/TLG_AntiJoin2SpamBot
+    cd TLG_AntiJoin2SpamBot/sources
+    ```
 
-6 - Enjoy of a Telegram free of "join2spam" users ;)
+4. Change the TOKEN line of Constants file to set the TOKEN of your Bot account (from @BotFather):
+
+    ```bash
+    nano Constants.py
+        [Change this line -> 'TOKEN' : 'XXXXXXXXX:XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX']
+    ```
+
+5. Run the Bot:
+
+    ```bash
+    A - Run it at normal:
+        python3 Anti_Join2Spam_Bot.py
+
+    B - Run it in background and unassociated to actual tty (preserve execution when terminal/console is closed):
+        nohup python3 Anti_Join2Spam_Bot.py &
+    ```
+
+6. Enjoy of a Telegram free of "join2spam" users ;)
 
 -------------------------------------------------------------------------------------------------------------------------
 
-## Bot help:
+## Bot help
 
-- To get working the Anti-spam, you must add me to a group ang give me Administration privileges to let me delete spam messages.
+- To get working the Anti-spam, you must add me to a group and give me Administration privileges to let me delete spam messages.
 
-- Once I got Admin privileges, I'll watch for all new users that join the group and don't let them to publish messages that contains URLs until they have been in the group long as an specific time, and they have written an enough number of messages.
+- Once I got Admin privileges, I'll watch for all new users that join the group and don't let them to publish messages containing URLs until they have been in the group long as an specific time, and they have written an enough number of messages.
 
 - The time that new users need to wait and the number of messages that they need to write before they can publish messages with URLs are, by default, 24 hours and 10 messages, but this values can be modified and configured by using the commands /set_messages and /set_hours.
 
@@ -65,7 +69,7 @@ B - Run it in background and unassociated to actual tty (preserve execution when
 
 -------------------------------------------------------------------------------------------------------------------------
 
-## List of implemented commands:
+## List of implemented commands
 
 /start - Show the initial information about the bot.
 
