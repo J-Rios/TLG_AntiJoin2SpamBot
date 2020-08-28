@@ -12,9 +12,9 @@ Author:
 Creation date:
     04/04/2018
 Last modified date:
-    09/05/2020
+    28/08/2020
 Version:
-    1.9.0p
+    1.10.0p
 '''
 
 ####################################################################################################
@@ -717,7 +717,6 @@ def msg_nocmd(update: Update, context: CallbackContext):
                                             bot_message = "{}{}".format(bot_message, bot_msg_2)
                                     sent_msg = bot.send_message(chat_id, bot_message, \
                                         parse_mode=ParseMode.HTML)
-                                    tlg_msg_to_selfdestruct(bot, sent_msg)
                                     # Store sent anti-spam message in to delete list
                                     antispam_msg = OrderedDict( \
                                     [ \
@@ -1293,6 +1292,12 @@ def selfdestruct_messages(bot):
 
 def main():
     '''Main Function'''
+    # Check if Bot Token has been set or has default value
+    if CONST["TOKEN"] == "XXXXXXXXX:XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX":
+        debug_print("Error: Bot Token has not been set.")
+        debug_print("Please add your Bot Token to constants.py file.")
+        debug_print("Exit.\n")
+        sys.exit(0)
     # Initialize resources by populating files list and configs with chats found files
     debug_print("Launching Bot...")
     initialize_resources()
@@ -1307,7 +1312,7 @@ def main():
     dp.add_handler(CommandHandler("set_messages", cmd_set_messages, pass_args=True))
     dp.add_handler(CommandHandler("set_hours", cmd_set_hours, pass_args=True))
     dp.add_handler(CommandHandler("status", cmd_status))
-    dp.add_handler(CommandHandler("call_admins", cmd_call_admins))
+    dp.add_handler(CommandHandler("admin", cmd_call_admins))
     dp.add_handler(CommandHandler("call_when_spam", cmd_call_when_spam, pass_args=True))
     dp.add_handler(CommandHandler("users_add_bots", cmd_users_add_bots, pass_args=True))
     dp.add_handler(CommandHandler("allow_user", cmd_allow_user, pass_args=True))
@@ -1326,7 +1331,20 @@ def main():
     dp.add_handler(MessageHandler(Filters.status_update.new_chat_members, new_user))
     dp.add_handler(MessageHandler(Filters.status_update.left_chat_member, left_user))
     # Launch the Bot ignoring pending messages (clean=True) and get all updates (allowed_uptades=[])
-    updater.start_polling(clean=True, allowed_updates=[])
+    if CONST["WEBHOOK_HOST"] == "None":
+        debug_print("Setup Bot for Polling.")
+        updater.start_polling(
+            clean=True,
+            allowed_updates=[]
+        )
+    else:
+        debug_print("Setup Bot for Webhook.")
+        updater.start_webhook(
+            clean=True, listen="0.0.0.0", port=CONST["WEBHOOK_PORT"], url_path=CONST["TOKEN"],
+            key=CONST["WEBHOOK_CERT_PRIV_KEY"], cert=CONST["WEBHOOK_CERT"],
+            webhook_url="https://{}:{}/{}".format(CONST["WEBHOOK_HOST"], CONST["WEBHOOK_PORT"],
+            CONST["TOKEN"])
+        )
     debug_print("Bot started.")
     # Handle self-messages delete
     selfdestruct_messages(updater.bot)
