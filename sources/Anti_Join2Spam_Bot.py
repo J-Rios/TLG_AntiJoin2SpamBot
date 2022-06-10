@@ -22,15 +22,26 @@ Version:
 ### Imported modules ###
 
 import re
-import sys
-import signal
 import TSjson
-from os import path, makedirs, listdir
+
+from platform import system as os_system
+
+from signal import signal, SIGTERM, SIGINT
+if os_system() != "Windows":
+    from signal import SIGUSR1
+
+from sys import exit
+
+from os import kill, getpid, path, makedirs, listdir
+
 from datetime import datetime, timedelta
+
 from time import time, sleep, strptime, mktime, strftime
+
 from threading import Thread, Lock
-from Constants import CONST, TEXT
+
 from operator import itemgetter
+
 from collections import OrderedDict
 
 from telegram import (
@@ -48,12 +59,15 @@ from telegram.error import (
     TimedOut, NetworkError
 )
 
+from Constants import CONST, TEXT
+
 ####################################################################################################
 
 ### Debug Flag ###
 DEBUG = True
 
 ### Globals ###
+updater = None
 allowed_groups = []
 files_users_list = []
 files_messages_list = []
@@ -61,13 +75,23 @@ files_config_list = []
 to_delete_messages_list = []
 sent_antispam_messages_list = []
 owner_notify = False
+th_0 = None
+force_exit = False
 
 ####################################################################################################
 
-### Termination signals handler for program process ###
-def signal_handler(signal, frame):
+### Termination Signals Handler For Program Process
+
+def signal_handler(signal,  frame):
     '''Termination signals (SIGINT, SIGTERM) handler for program process'''
-    debug_print("Closing the program, safe way...")
+    global force_exit
+    global updater
+    global th_0
+    debug_print("Termination signal received. Releasing resources...")
+    # Close the Bot instance (it wait for updater, dispatcher and other internals threads to end)
+    if updater is not None:
+        debug_print("Closing Bot...")
+        updater.stop()
     # Acquire all messages and users files mutex to ensure not read/write operation on them
     for chat_users_file in files_users_list:
         chat_users_file['File'].lock.acquire()
@@ -75,13 +99,24 @@ def signal_handler(signal, frame):
         chat_messages_file['File'].lock.acquire()
     for chat_config_file in files_config_list:
         chat_config_file['File'].lock.acquire()
+    # Wait to end threads
+    force_exit = True
+    debug_print("Waiting th_0 end...")
+    if th_0 is not None:
+        if th_0.is_alive():
+            th_0.join()
     # Close the program
-    sys.exit(0)
+    debug_print("All resources released.")
+    debug_print("Exit 0")
+    exit(0)
 
 
-### Signals attachment ###
-signal.signal(signal.SIGTERM, signal_handler) # SIGTERM (kill pid) to signal_handler
-signal.signal(signal.SIGINT, signal_handler)  # SIGINT (Ctrl+C) to signal_handler
+### Signals attachment
+
+signal(SIGTERM, signal_handler) # SIGTERM (kill pid) to signal_handler
+signal(SIGINT, signal_handler)  # SIGINT (Ctrl+C) to signal_handler
+if os_system() != "Windows":
+    signal(SIGUSR1, signal_handler) # SIGUSR1 (self-send) to signal_handler
 
 ####################################################################################################
 
@@ -1293,9 +1328,10 @@ def tlg_msg_to_selfdestruct_in(bot, message, time_delete_min):
         "({}, {}, {}).".format(chat_id, msg_id, destroy_time))
 
 
-def selfdestruct_messages(bot):
+def th_selfdestruct_messages(bot):
     '''Handle remove messages sent by the Bot with the timed self-delete function'''
-    while True:
+    global to_delete_messages_list
+    while not force_exit:
         # Check each Bot sent message
         for sent_msg in to_delete_messages_list:
             # If actual time is equal or more than the expected sent msg delete time
@@ -1339,12 +1375,13 @@ def tlg_error_callback(update, context):
 
 def main():
     '''Main Function'''
+    global updater
     # Check if Bot Token has been set or has default value
     if CONST["TOKEN"] == "XXXXXXXXX:XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX":
         debug_print("Error: Bot Token has not been set.")
         debug_print("Please add your Bot Token to constants.py file.")
         debug_print("Exit.\n")
-        sys.exit(0)
+        exit(0)
     # Initialize resources by populating files list and configs with chats found files
     debug_print("Launching Bot...")
     initialize_resources()
@@ -1407,9 +1444,21 @@ def main():
                 Update.CHAT_MEMBER
             ]
         )
-    debug_print("Bot started.")
-    # Handle self-messages delete
-    selfdestruct_messages(updater.bot)
+    debug_print("Bot setup completed. Bot is now running.")
+    # Launch delete mesages thread
+    th_0 = Thread(target=th_selfdestruct_messages, args=(updater.bot,))
+    th_0.name = "th_selfdestruct_messages"
+    th_0.start()
+    # Set main thread to idle
+    updater.idle()
+    print("Bot Threads end")
+    if os_system() == "Windows":
+        kill(getpid(), SIGTERM)
+    else:
+        kill(getpid(), SIGUSR1)
+    sleep(1)
+    debug_print("Exit 1")
+    exit(1)
 
 
 if __name__ == '__main__':
