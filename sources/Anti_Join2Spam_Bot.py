@@ -1332,8 +1332,20 @@ def th_selfdestruct_messages(bot):
     '''Handle remove messages sent by the Bot with the timed self-delete function'''
     global to_delete_messages_list
     while not force_exit:
+        # Thread sleep for each iteration
+        sleep(0.01)
         # Check each Bot sent message
-        for sent_msg in to_delete_messages_list:
+        i = 0
+        while i < len(to_delete_messages_list):
+            sent_msg = to_delete_messages_list[i]
+            # Check for break iterating if script must exit
+            if force_exit:
+                return
+            # Sleep each 100 iterations
+            i = i + 1
+            if (i != 0) and ((i % 1000) == 0):
+                i = 0
+                sleep(0.01)
             # If actual time is equal or more than the expected sent msg delete time
             if int(time()) >= sent_msg['delete_time']:
                 # Try to delete that sent message if possible (still exists)
@@ -1347,8 +1359,6 @@ def th_selfdestruct_messages(bot):
                 except:
                     debug_print("Fail - Can't delete message.")
                     to_delete_messages_list.remove(sent_msg)
-        # Wait 10s (release CPU usage)
-        sleep(10)
 
 ####################################################################################################
 
