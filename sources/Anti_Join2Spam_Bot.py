@@ -459,16 +459,15 @@ def notify_all_chats(bot, message):
                     debug_print("Exception when publishing in {} - {}".format(chat_id, str(e)))
 
 
-def bot_leave_chat(bot, chat_id):
-    '''Thread Function to try Bot leave a group.'''
+def bot_leave_chat(bot, chat_id, timeout=None):
+    '''Telegram Bot try to leave a chat.'''
     left = False
-    while not left:
-        try:
-            bot.leave_chat(chat_id)
+    try:
+        if bot.leave_chat(chat_id=chat_id, timeout=timeout):
             left = True
-        except Exception as e:
-            debug_print('Bot fail to leave the chat "{}": {}'.format(chat_id, str(e)))
-            sleep(5)
+    except Exception as e:
+        debug_print("[{}] {}".format(chat_id, str(e)))
+    return left
 
 ####################################################################################################
 
@@ -646,9 +645,7 @@ def new_user(update: Update, context: CallbackContext):
                 bot_message = TEXT[lang]['ANTI-SPAM_BOT_ADDED_TO_GROUP_NOT_ALLOW'].format(chat_id)
                 bot.send_message(chat_id, bot_message)
                 # Launch Bot leave group thread
-                thread = Thread(target=bot_leave_chat, args=(bot, chat_id))
-                thread.setDaemon(True)
-                thread.start()
+                bot_leave_chat(bot, chat_id)
 
 
 def msg_nocmd(update: Update, context: CallbackContext):
@@ -675,9 +672,7 @@ def msg_nocmd(update: Update, context: CallbackContext):
         bot_message = TEXT[lang]['ANTI-SPAM_BOT_ADDED_TO_GROUP_NOT_ALLOW'].format(chat_id)
         bot.send_message(chat_id, bot_message)
         # Launch Bot leave group thread
-        thread = Thread(target=bot_leave_chat, args=(bot, chat_id))
-        thread.setDaemon(True)
-        thread.start()
+        bot_leave_chat(bot, chat_id)
         return
     chat_title = update.message.chat.title
     if chat_title:
