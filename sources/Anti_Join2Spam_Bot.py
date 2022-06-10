@@ -12,14 +12,15 @@ Author:
 Creation date:
     04/04/2018
 Last modified date:
-    28/08/2020
+    10/06/2022
 Version:
-    1.10.0p
+    1.11.0
 '''
 
 ####################################################################################################
 
 ### Imported modules ###
+
 import re
 import sys
 import signal
@@ -31,8 +32,21 @@ from threading import Thread, Lock
 from Constants import CONST, TEXT
 from operator import itemgetter
 from collections import OrderedDict
-from telegram import (Update, ParseMode)
-from telegram.ext import (CallbackContext, Updater, CommandHandler, MessageHandler, Filters)
+
+from telegram import (
+    Update, ParseMode
+)
+
+from telegram.ext import (
+    CallbackContext, Updater, CommandHandler,
+    ChatMemberHandler, MessageHandler, Filters,
+    Defaults
+)
+
+from telegram.error import (
+    TelegramError, Unauthorized, BadRequest,
+    TimedOut, NetworkError
+)
 
 ####################################################################################################
 
@@ -94,41 +108,45 @@ def debug_print_tlg(bot, text):
 
 def initialize_resources():
     '''Initialize resources by populating files list with chats found files'''
-    # Create data directory if it does not exists
+    # Create data directories and files if does not exists
     if not path.exists(CONST['DATA_DIR']):
         makedirs(CONST['DATA_DIR'])
+    # Get allowed groups from persistent groups file
+    f_json_groups = TSjson.TSjson(CONST['F_GROUPS'])
+    groups_json = f_json_groups.read()
+    if groups_json:
+        if 'ID' in groups_json:
+            for group_id in groups_json['ID']:
+                allowed_groups.append(group_id)
     else:
-        # If directory data exists, get allowed groups from persistent groups file
-        f_groups = "{}/{}".format(CONST['DATA_DIR'], CONST['F_GROUPS'])
-        f_json_groups = TSjson.TSjson(f_groups)
-        groups_json = f_json_groups.read()
-        if groups_json:
-            if 'ID' in groups_json:
-                for group_id in groups_json['ID']:
-                    allowed_groups.append(group_id)
-        # Check all subdirectories names (chats ID)
-        files = listdir(CONST['DATA_DIR'])
-        if files:
-            if 'groups.json' in files:
-                files.remove('groups.json')
-            for f_chat_id in files:
-                # Populate users files list
-                file_path = '{}/{}/{}'.format(CONST['DATA_DIR'], f_chat_id, CONST['F_USERS'])
-                files_users_list.append(OrderedDict([('ID', f_chat_id), \
-                    ('File', TSjson.TSjson(file_path))]))
-                # Populate messages files list
-                file_path = '{}/{}/{}'.format(CONST['DATA_DIR'], f_chat_id, CONST['F_MSG'])
-                files_messages_list.append(OrderedDict([('ID', f_chat_id), \
-                    ('File', TSjson.TSjson(file_path))]))
-                # Populate config files list
-                file_path = '{}/{}/{}'.format(CONST['DATA_DIR'], f_chat_id, CONST['F_CONF'])
-                files_config_list.append(OrderedDict([('ID', f_chat_id), \
-                    ('File', TSjson.TSjson(file_path))]))
-                # Create default configuration file if it does not exists
-                if not path.exists(file_path):
-                    default_conf = get_default_config_data()
-                    for key, value in default_conf.items():
-                        save_config_property(f_chat_id, key, value)
+        list_id = []
+        list_id.append(CONST['OWNER_ID'])
+        groups_json = OrderedDict([('ID', list_id)])
+        f_json_groups.write(groups_json)
+        allowed_groups.append(CONST['OWNER_ID'])
+    # Check all subdirectories names (chats ID)
+    files = listdir(CONST['DATA_DIR'])
+    if files:
+        if 'groups.json' in files:
+            files.remove('groups.json')
+        for f_chat_id in files:
+            # Populate users files list
+            file_path = '{}/{}/{}'.format(CONST['DATA_DIR'], f_chat_id, CONST['F_USERS'])
+            files_users_list.append(OrderedDict([('ID', f_chat_id), \
+                ('File', TSjson.TSjson(file_path))]))
+            # Populate messages files list
+            file_path = '{}/{}/{}'.format(CONST['DATA_DIR'], f_chat_id, CONST['F_MSG'])
+            files_messages_list.append(OrderedDict([('ID', f_chat_id), \
+                ('File', TSjson.TSjson(file_path))]))
+            # Populate config files list
+            file_path = '{}/{}/{}'.format(CONST['DATA_DIR'], f_chat_id, CONST['F_CONF'])
+            files_config_list.append(OrderedDict([('ID', f_chat_id), \
+                ('File', TSjson.TSjson(file_path))]))
+            # Create default configuration file if it does not exists
+            if not path.exists(file_path):
+                default_conf = get_default_config_data()
+                for key, value in default_conf.items():
+                    save_config_property(f_chat_id, key, value)
 
 
 def get_chat_users_file(chat_id):
@@ -216,8 +234,7 @@ def get_default_config_data():
 
 def save_allowed_group(group_id):
     '''Store a new allowed group'''
-    f_groups = "{}/{}".format(CONST['DATA_DIR'], CONST['F_GROUPS'])
-    f_json_groups = TSjson.TSjson(f_groups)
+    f_json_groups = TSjson.TSjson(CONST['F_GROUPS'])
     groups_json = f_json_groups.read()
     if groups_json:
         if 'ID' in groups_json:
@@ -295,7 +312,7 @@ def get_message(chat_id, msg_id):
     for msg in messages_data:
         if chat_id == msg['Chat_id']:
             if msg_id == msg['Msg_id']:
-                return msg    
+                return msg
     return None
 
 
@@ -604,144 +621,155 @@ def msg_nocmd(update: Update, context: CallbackContext):
     global owner_notify
     bot = context.bot
     chat_id = update.message.chat_id
-    if chat_id in allowed_groups:
-        chat_type = update.message.chat.type
-        user_id = update.message.from_user.id
-        lang = get_chat_config(chat_id, 'Language')
-        if chat_type == "private":
-            if user_id == CONST['OWNER_ID']:
-                if owner_notify == True:
-                    owner_notify = False
-                    message = update.message.text
-                    notify_all_chats(bot, message)
-                    bot.send_message(chat_id, TEXT[lang]['CMD_NOTIFY_ALL_OK'])
-        else:
-            chat_title = update.message.chat.title
-            if chat_title:
-                save_config_property(chat_id, 'Title', chat_title)
-            chat_link = update.message.chat.username
-            if chat_link:
-                chat_link = '@{}'.format(chat_link)
-                save_config_property(chat_id, 'Link', chat_link)
-            msg_id = update.message.message_id
-            user_name = update.message.from_user.name
-            msg_date = (update.message.date).now().strftime("%Y-%m-%d %H:%M:%S")
-            text = update.message.text
-            if text == None:
-                text = getattr(update.message, "caption_html", None)
-                if text == None:
-                    text = getattr(update.message, "caption", None)
-            enable = get_chat_config(chat_id, 'Antispam')
-            time_for_allow_urls_h = get_chat_config(chat_id, 'Time_for_allow_urls_h')
-            num_messages_for_allow_urls = get_chat_config(chat_id, 'Num_messages_for_allow_urls')
-            call_admins_when_spam_detected = get_chat_config(chat_id, 'Call_admins_when_spam_detected')
-            # If user not yet register, add to users file, else, get his number of published msgs
-            if not user_in_json(chat_id, user_id):
-                # Register user and set "Num_messages" and "Join_date" to allow publish URLs
-                register_new_user(chat_id, user_id, user_name, msg_date, True)
-                user_data = get_user_from_id(chat_id, user_id)
-                user_data['Num_messages'] = num_messages_for_allow_urls + 1
-                user_data['Join_date'] = datetime(1971, 1, 1).strftime("%Y-%m-%d %H:%M:%S")
-                update_user(chat_id, user_data)
-            else:
-                # Increase num messages count
-                user_data = get_user_from_id(chat_id, user_id)
-                user_data['Num_messages'] = user_data['Num_messages'] + 1
-                update_user(chat_id, user_data)
-                # If it is a text message
-                if text != None:
-                    # If the user is not an Admin and the Bot Anti-Spam is enabled
-                    is_admin = user_is_admin(bot, user_id, chat_id)
-                    if (is_admin != True) and (enable == True):
-                        # If there is any URL in the message
-                        any_url = re.findall(CONST['REGEX_URLS'], text)
-                        if any_url:
-                            # If user does not have allowed to publish
-                            if user_data['Allow_user'] == False:
-                                num_published_messages = user_data['Num_messages']
-                                # Check user time in the group
-                                user_join_date = user_data['Join_date']
-                                user_join_date_dateTime = strptime(user_join_date, "%Y-%m-%d %H:%M:%S")
-                                msg_date_dateTime = strptime(msg_date, "%Y-%m-%d %H:%M:%S")
-                                t0 = mktime(user_join_date_dateTime) # Date to epoch
-                                t1 = mktime(msg_date_dateTime) # Date to epoch
-                                user_hours_in_group = (t1 - t0)/3600
-                                # If user is relatively new in the group or has not write enough msgs
-                                if ((user_hours_in_group < time_for_allow_urls_h) or 
-                                    (num_published_messages < num_messages_for_allow_urls + 1)):
-                                    debug_print("Spam message detected.\n  (Chat, User, Message) - " \
-                                        "({}, {}, {}).".format(chat_id, user_name, user_id))
-                                    # Decrease this message from the user messages count
-                                    user_data['Num_messages'] = user_data['Num_messages'] - 1
-                                    update_user(chat_id, user_data)
-                                    # Check if there was another spam messages in the chat from same
-                                    # user, and remove it
-                                    for antispam_msg in sent_antispam_messages_list:
-                                        if (antispam_msg['User_id'] == user_id) and \
-                                            (antispam_msg['Chat_id'] == chat_id):
-                                            # Try to delete that sent message if possible (still exists)
-                                            try:
-                                                if bot.delete_message(chat_id, antispam_msg['Msg_id']):
-                                                    sent_antispam_messages_list.remove(antispam_msg)
-                                                    debug_print("Previous Spam message successfully " \
-                                                        "removed.\n  (Chat, User, Message) - " \
-                                                        "({}, {}, {}).".format(chat_id, user_name, \
-                                                        user_id))
-                                            except Exception as e:
-                                                debug_print("Exception when deleting a previous Spam " \
-                                                    "message from an user - {}".format(str(e)))
-                                                sent_antispam_messages_list.remove(antispam_msg)
-                                    # Delete user message and notify what happen
-                                    bot_msg_head = TEXT[lang]['MSG_SPAM_HEADER']
+    chat_type = update.message.chat.type
+    user_id = update.message.from_user.id
+    lang = get_chat_config(chat_id, 'Language')
+    ## Handle on Private Chat Conversation ##
+    if chat_type == "private":
+        if user_id == CONST['OWNER_ID']:
+            if owner_notify == True:
+                owner_notify = False
+                message = update.message.text
+                notify_all_chats(bot, message)
+                bot.send_message(chat_id, TEXT[lang]['CMD_NOTIFY_ALL_OK'])
+        return
+    ## Handle on Groups/Channels ##
+    # Leave not allowed groups
+    if chat_id not in allowed_groups:
+        # Bot message
+        bot_message = TEXT[lang]['ANTI-SPAM_BOT_ADDED_TO_GROUP_NOT_ALLOW'].format(chat_id)
+        bot.send_message(chat_id, bot_message)
+        # Launch Bot leave group thread
+        thread = Thread(target=bot_leave_chat, args=(bot, chat_id))
+        thread.setDaemon(True)
+        thread.start()
+        return
+    chat_title = update.message.chat.title
+    if chat_title:
+        save_config_property(chat_id, 'Title', chat_title)
+    chat_link = update.message.chat.username
+    if chat_link:
+        chat_link = '@{}'.format(chat_link)
+        save_config_property(chat_id, 'Link', chat_link)
+    msg_id = update.message.message_id
+    user_name = update.message.from_user.name
+    msg_date = (update.message.date).now().strftime("%Y-%m-%d %H:%M:%S")
+    text = update.message.text
+    if text == None:
+        text = getattr(update.message, "caption_html", None)
+        if text == None:
+            text = getattr(update.message, "caption", None)
+    enable = get_chat_config(chat_id, 'Antispam')
+    time_for_allow_urls_h = get_chat_config(chat_id, 'Time_for_allow_urls_h')
+    num_messages_for_allow_urls = get_chat_config(chat_id, 'Num_messages_for_allow_urls')
+    call_admins_when_spam_detected = get_chat_config(chat_id, 'Call_admins_when_spam_detected')
+    # If user not yet register, add to users file, else, get his number of published msgs
+    if not user_in_json(chat_id, user_id):
+        # Register user and set "Num_messages" and "Join_date" to allow publish URLs
+        register_new_user(chat_id, user_id, user_name, msg_date, True)
+        user_data = get_user_from_id(chat_id, user_id)
+        user_data['Num_messages'] = num_messages_for_allow_urls + 1
+        user_data['Join_date'] = datetime(1971, 1, 1).strftime("%Y-%m-%d %H:%M:%S")
+        update_user(chat_id, user_data)
+    else:
+        # Increase num messages count
+        user_data = get_user_from_id(chat_id, user_id)
+        user_data['Num_messages'] = user_data['Num_messages'] + 1
+        update_user(chat_id, user_data)
+        # If it is a text message
+        if text != None:
+            # If the user is not an Admin and the Bot Anti-Spam is enabled
+            is_admin = user_is_admin(bot, user_id, chat_id)
+            if (is_admin != True) and (enable == True):
+                # If there is any URL in the message
+                any_url = re.findall(CONST['REGEX_URLS'], text)
+                if any_url:
+                    # If user does not have allowed to publish
+                    if user_data['Allow_user'] == False:
+                        num_published_messages = user_data['Num_messages']
+                        # Check user time in the group
+                        user_join_date = user_data['Join_date']
+                        user_join_date_dateTime = strptime(user_join_date, "%Y-%m-%d %H:%M:%S")
+                        msg_date_dateTime = strptime(msg_date, "%Y-%m-%d %H:%M:%S")
+                        t0 = mktime(user_join_date_dateTime) # Date to epoch
+                        t1 = mktime(msg_date_dateTime) # Date to epoch
+                        user_hours_in_group = (t1 - t0)/3600
+                        # If user is relatively new in the group or has not write enough msgs
+                        if ((user_hours_in_group < time_for_allow_urls_h) or 
+                            (num_published_messages < num_messages_for_allow_urls + 1)):
+                            debug_print("Spam message detected.\n  (Chat, User, Message) - " \
+                                "({}, {}, {}).".format(chat_id, user_name, user_id))
+                            # Decrease this message from the user messages count
+                            user_data['Num_messages'] = user_data['Num_messages'] - 1
+                            update_user(chat_id, user_data)
+                            # Check if there was another spam messages in the chat from same
+                            # user, and remove it
+                            for antispam_msg in sent_antispam_messages_list:
+                                if (antispam_msg['User_id'] == user_id) and \
+                                    (antispam_msg['Chat_id'] == chat_id):
+                                    # Try to delete that sent message if possible (still exists)
                                     try:
-                                        if bot.delete_message(chat_id, msg_id):
-                                            bot_msg_0 = TEXT[lang]['MSG_SPAM_DETECTED_0'].format( \
-                                                user_name)
-                                            bot_msg_1 = TEXT[lang]['MSG_SPAM_DETECTED_1'].format( \
-                                                num_messages_for_allow_urls, time_for_allow_urls_h)
-                                            bot_message = "{}{}{}".format(bot_msg_head, bot_msg_0, \
-                                                bot_msg_1)
-                                            debug_print("Spam message successfully removed.\n  " \
-                                                "(Chat, User, Message) - ({}, {}, {}).".format( \
-                                                chat_id, user_name, user_id))
+                                        if bot.delete_message(chat_id, antispam_msg['Msg_id']):
+                                            sent_antispam_messages_list.remove(antispam_msg)
+                                            debug_print("Previous Spam message successfully " \
+                                                "removed.\n  (Chat, User, Message) - " \
+                                                "({}, {}, {}).".format(chat_id, user_name, \
+                                                user_id))
                                     except Exception as e:
-                                        debug_print("Exception when deleting an Spam message - {}". \
-                                            format(str(e)))
-                                        if str(e) == "Message can't be deleted":
-                                            bot_message = "{}{}".format(bot_msg_head, \
-                                                TEXT[lang]['MSG_SPAM_DETECTED_CANT_REMOVE'])
-                                    if call_admins_when_spam_detected:
-                                        admins = get_admins_usernames_in_string(bot, chat_id)
-                                        if admins:
-                                            bot_msg_2 = TEXT[lang]['CALLING_ADMINS'].format(admins)
-                                            bot_message = "{}{}".format(bot_message, bot_msg_2)
-                                    sent_msg = bot.send_message(chat_id, bot_message, \
-                                        parse_mode=ParseMode.HTML)
-                                    # Store sent anti-spam message in to delete list
-                                    antispam_msg = OrderedDict( \
-                                    [ \
-                                        ('User_id', user_id), \
-                                        ('Chat_id', chat_id), \
-                                        ('Msg_id', sent_msg.message_id), \
-                                        ('Msg_date', t1) \
-                                    ])
-                                    sent_antispam_messages_list.append(antispam_msg)
-                                # If the user is allowed to publish URLs
-                                else:
-                                    # Give user permission
-                                    user_data['Allow_user'] = True
-                                    update_user(chat_id, user_data)
-                    # Truncate the message text to 500 characters
-                    if len(text) > 50:
-                        text = text[0:50]
-                        text = "{}...".format(text)
-                    # Add the message to messages file
-                    add_new_message(chat_id, msg_id, user_id, user_name, text, msg_date)
-            # Remove from list all messages from 5h ago or more
-            msg_date_epoch = mktime(strptime(msg_date, "%Y-%m-%d %H:%M:%S")) # Date string to epoch
-            for antispam_msg in sent_antispam_messages_list:
-                if msg_date_epoch - antispam_msg['Msg_date'] >= 40:
-                    sent_antispam_messages_list.remove(antispam_msg)
+                                        debug_print("Exception when deleting a previous Spam " \
+                                            "message from an user - {}".format(str(e)))
+                                        sent_antispam_messages_list.remove(antispam_msg)
+                            # Delete user message and notify what happen
+                            bot_msg_head = TEXT[lang]['MSG_SPAM_HEADER']
+                            try:
+                                if bot.delete_message(chat_id, msg_id):
+                                    bot_msg_0 = TEXT[lang]['MSG_SPAM_DETECTED_0'].format( \
+                                        user_name)
+                                    bot_msg_1 = TEXT[lang]['MSG_SPAM_DETECTED_1'].format( \
+                                        num_messages_for_allow_urls, time_for_allow_urls_h)
+                                    bot_message = "{}{}{}".format(bot_msg_head, bot_msg_0, \
+                                        bot_msg_1)
+                                    debug_print("Spam message successfully removed.\n  " \
+                                        "(Chat, User, Message) - ({}, {}, {}).".format( \
+                                        chat_id, user_name, user_id))
+                            except Exception as e:
+                                debug_print("Exception when deleting an Spam message - {}". \
+                                    format(str(e)))
+                                if str(e) == "Message can't be deleted":
+                                    bot_message = "{}{}".format(bot_msg_head, \
+                                        TEXT[lang]['MSG_SPAM_DETECTED_CANT_REMOVE'])
+                            if call_admins_when_spam_detected:
+                                admins = get_admins_usernames_in_string(bot, chat_id)
+                                if admins:
+                                    bot_msg_2 = TEXT[lang]['CALLING_ADMINS'].format(admins)
+                                    bot_message = "{}{}".format(bot_message, bot_msg_2)
+                            sent_msg = bot.send_message(chat_id, bot_message, \
+                                parse_mode=ParseMode.HTML)
+                            # Store sent anti-spam message in to delete list
+                            antispam_msg = OrderedDict( \
+                            [ \
+                                ('User_id', user_id), \
+                                ('Chat_id', chat_id), \
+                                ('Msg_id', sent_msg.message_id), \
+                                ('Msg_date', t1) \
+                            ])
+                            sent_antispam_messages_list.append(antispam_msg)
+                        # If the user is allowed to publish URLs
+                        else:
+                            # Give user permission
+                            user_data['Allow_user'] = True
+                            update_user(chat_id, user_data)
+            # Truncate the message text to 500 characters
+            if len(text) > 50:
+                text = text[0:50]
+                text = "{}...".format(text)
+            # Add the message to messages file
+            add_new_message(chat_id, msg_id, user_id, user_name, text, msg_date)
+    # Remove from list all messages from 5h ago or more
+    msg_date_epoch = mktime(strptime(msg_date, "%Y-%m-%d %H:%M:%S")) # Date string to epoch
+    for antispam_msg in sent_antispam_messages_list:
+        if msg_date_epoch - antispam_msg['Msg_date'] >= 40:
+            sent_antispam_messages_list.remove(antispam_msg)
 
 ####################################################################################################
 
@@ -1288,6 +1316,25 @@ def selfdestruct_messages(bot):
 
 ####################################################################################################
 
+### Telegram Errors Callback ###
+
+def tlg_error_callback(update, context):
+    '''Telegram errors handler.'''
+    try:
+        raise context.error
+    except Unauthorized:
+        debug_print("TLG Error: Unauthorized")
+    except BadRequest:
+        debug_print("TLG Error: Bad Request")
+    except TimedOut:
+        debug_print("TLG Error: Timeout (slow connection issue)")
+    except NetworkError:
+        debug_print("TLG Error: network problem")
+    except TelegramError as e:
+        debug_print("TLG Error: {}".format(str(e)))
+
+####################################################################################################
+
 ### Main Function ###
 
 def main():
@@ -1301,9 +1348,13 @@ def main():
     # Initialize resources by populating files list and configs with chats found files
     debug_print("Launching Bot...")
     initialize_resources()
+    # Set messages to be sent silently by default
+    msgs_defaults = Defaults(disable_notification=True)
     # Create an event handler (updater) for a Bot with the given Token and get the dispatcher
-    updater = Updater(CONST["TOKEN"], use_context=True)
+    updater = Updater(CONST["TOKEN"], workers=12, defaults=msgs_defaults)
     dp = updater.dispatcher
+    # Set Telegram errors handler
+    dp.add_error_handler(tlg_error_callback)
     # Set to dispatcher all expected commands messages handler
     dp.add_handler(CommandHandler("start", cmd_start))
     dp.add_handler(CommandHandler("help", cmd_help))
@@ -1323,27 +1374,38 @@ def main():
     dp.add_handler(CommandHandler("notify_discard", cmd_notify_discard))
     dp.add_handler(CommandHandler("version", cmd_version))
     dp.add_handler(CommandHandler("about", cmd_about))
-    # Set to dispatcher a not-command messages handler
-    dp.add_handler(MessageHandler(Filters.text | Filters.photo | Filters.audio | Filters.voice | \
-        Filters.video | Filters.sticker | Filters.document | Filters.location | Filters.contact, \
-        msg_nocmd))
+    # Set to dispatcher a not-command text messages handler
+    dp.add_handler(MessageHandler(Filters.text, msg_nocmd, run_async=True))
     # Set to dispatcher a new member join the group and member left the group events handlers
     dp.add_handler(MessageHandler(Filters.status_update.new_chat_members, new_user))
     dp.add_handler(MessageHandler(Filters.status_update.left_chat_member, left_user))
-    # Launch the Bot ignoring pending messages (clean=True) and get all updates (allowed_uptades=[])
+    # Launch the Bot ignoring pending messages and get all updates
     if CONST["WEBHOOK_HOST"] == "None":
         debug_print("Setup Bot for Polling.")
         updater.start_polling(
-            clean=True,
-            allowed_updates=[]
+            drop_pending_updates=True,
+            #allowed_updates=Update.ALL_TYPES
+            allowed_updates=[
+                Update.MESSAGE,
+                Update.EDITED_MESSAGE,
+                Update.MY_CHAT_MEMBER,
+                Update.CHAT_MEMBER
+            ]
         )
     else:
         debug_print("Setup Bot for Webhook.")
         updater.start_webhook(
-            clean=True, listen="0.0.0.0", port=CONST["WEBHOOK_PORT"], url_path=CONST["TOKEN"],
-            key=CONST["WEBHOOK_CERT_PRIV_KEY"], cert=CONST["WEBHOOK_CERT"],
+            drop_pending_updates=True, listen="0.0.0.0", port=CONST["WEBHOOK_PORT"],
+            url_path=CONST["TOKEN"], key=CONST["WEBHOOK_CERT_PRIV_KEY"], cert=CONST["WEBHOOK_CERT"],
             webhook_url="https://{}:{}/{}".format(CONST["WEBHOOK_HOST"], CONST["WEBHOOK_PORT"],
-            CONST["TOKEN"])
+            CONST["TOKEN"]),
+            #allowed_updates=Update.ALL_TYPES
+            allowed_updates=[
+                Update.MESSAGE,
+                Update.EDITED_MESSAGE,
+                Update.MY_CHAT_MEMBER,
+                Update.CHAT_MEMBER
+            ]
         )
     debug_print("Bot started.")
     # Handle self-messages delete
