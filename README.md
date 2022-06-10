@@ -1,53 +1,63 @@
 # TLG_AntiJoin2SpamBot
 
-Telegram Bot that figths against spammer users who joins groups to spam their annoying and unwanted info.
+Telegram Bot that figths against Spammers who joins groups to spam their annoying and unwanted info.
+
+The Bot will watch for all new users that join a group and don't let them to publish messages containing links (URLs) until they have been in the group long as an specific time, and they have written an enough number of messages (configurable parameters).
 
 -------------------------------------------------------------------------------------------------------------------------
 
+## Donate
+
+Do you like this Bot? Buy me a coffee :)
+
+Paypal:
+[https://www.paypal.me/josrios](https://www.paypal.me/josrios)
+
 ## How to install, setup and execute the Bot
+
+Note: Use Python 3.6 or above to install and run the Bot, previous version are unsupported.
 
 1. Install Python3 and their tools:
 
     ```bash
-    sudo -i
-    apt-get install python3
-    apt-get install python3-pip
-    pip3 install --upgrade pip
-    pip3 install --upgrade setuptools
+    sudo apt-get install python3
+    sudo apt-get install python3-pip
+    sudo python3 -m pip install --upgrade pip
+    sudo python3 -m pip install --upgrade setuptools
     ```
 
-2. Install python-telegram-bot library using python3-pip tool:
-
-    ```bash
-    pip install -r requirements.txt
-    exit
-    ```
-
-3. Download Bot repository and go inside sources directory:
+2. Get the project and install JoinCaptchaBot requirements:
 
     ```bash
     git clone https://github.com/J-Rios/TLG_AntiJoin2SpamBot
+    sudo python3 -m pip install -r TLG_AntiJoin2SpamBot/requirements.txt
+    ```
+
+3. Go to project sources and give execution permission to usage scripts:
+
+    ```bash
     cd TLG_AntiJoin2SpamBot/sources
+    chmod +x run status kill
     ```
 
-4. Change the TOKEN line of Constants file to set the TOKEN of your Bot account (from @BotFather):
+4. Specify Telegram Bot account Token (get it from @BotFather) in "Constants.py" file:
 
-    ```bash
-    nano Constants.py
-        [Change this line -> 'TOKEN' : 'XXXXXXXXX:XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX']
+    ```python
+    'TOKEN' : 'XXXXXXXXX:XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX'
     ```
 
-5. Run the Bot:
+## Usage
 
-    ```bash
-    A - Run it at normal:
-        python3 Anti_Join2Spam_Bot.py
+To ease usage a `run`, `status`, and `kill` scripts have been provided.
 
-    B - Run it in background and unassociated to actual tty (preserve execution when terminal/console is closed):
-        nohup python3 Anti_Join2Spam_Bot.py &
-    ```
+- Launch the Bot:  
+`./run`
 
-6. Enjoy of a Telegram free of "join2spam" users ;)
+- Check if the script is running:  
+`./status`
+
+- Stop the Bot:  
+`./kill`
 
 -------------------------------------------------------------------------------------------------------------------------
 
@@ -85,7 +95,7 @@ Telegram Bot that figths against spammer users who joins groups to spam their an
 
 /set_hours - Set how many hours for new users are need to wait to get allowed to publish URLs in messages.
 
-/call_admins - Call to all Admins of the group.
+/admin - Call to all Admins of the group.
 
 /call_when_spam - Enable/disable Admins notify when a spam message is detected.
 
@@ -107,4 +117,4 @@ Telegram Bot that figths against spammer users who joins groups to spam their an
 
 - This Bot uses [python-telegram-bot](https://github.com/python-telegram-bot/python-telegram-bot) library.
 
-- This Bot was developed using Python 3.6.
+- Minimal Python version 3.6.
