@@ -652,16 +652,34 @@ def msg_nocmd(update: Update, context: CallbackContext):
     '''All Not-command messages handler'''
     global owner_notify
     bot = context.bot
-    chat_id = update.message.chat_id
-    chat_type = update.message.chat.type
-    user_id = update.message.from_user.id
+    # Get message data
+    update_msg = getattr(update, "message", None)
+    if update_msg is None:
+        update_msg = getattr(update, "edited_message", None)
+    if update_msg is None:
+        update_msg = getattr(update, "channel_post", None)
+    if update_msg is None:
+        print("Warning: Received an unexpected no-command update.")
+        print(update)
+        return
+    chat_id = getattr(update_msg, "chat_id", None)
+    if chat_id is None:
+        print("Warning: Received an unexpected no-command update without chat id.")
+        print(update)
+        return
+    chat = getattr(update_msg, "chat", None)
+    if chat is None:
+        print("Warning: Received an unexpected no-command update without chat.")
+        print(update)
+        return
+    user_id = update_msg.from_user.id
     lang = get_chat_config(chat_id, 'Language')
     ## Handle on Private Chat Conversation ##
-    if chat_type == "private":
+    if chat.type == "private":
         if user_id == CONST['OWNER_ID']:
             if owner_notify == True:
                 owner_notify = False
-                message = update.message.text
+                message = update_msg.text
                 notify_all_chats(bot, message)
                 bot.send_message(chat_id, TEXT[lang]['CMD_NOTIFY_ALL_OK'])
         return
@@ -674,21 +692,35 @@ def msg_nocmd(update: Update, context: CallbackContext):
         # Launch Bot leave group thread
         bot_leave_chat(bot, chat_id)
         return
-    chat_title = update.message.chat.title
-    if chat_title:
+    chat_title = getattr(chat, "title", None)
+    if chat_title is not None:
         save_config_property(chat_id, 'Title', chat_title)
-    chat_link = update.message.chat.username
-    if chat_link:
+    chat_link = getattr(chat, "username", None)
+    if chat_link is not None:
         chat_link = '@{}'.format(chat_link)
         save_config_property(chat_id, 'Link', chat_link)
-    msg_id = update.message.message_id
-    user_name = update.message.from_user.name
-    msg_date = (update.message.date).now().strftime("%Y-%m-%d %H:%M:%S")
-    text = update.message.text
-    if text == None:
-        text = getattr(update.message, "caption_html", None)
-        if text == None:
-            text = getattr(update.message, "caption", None)
+    msg_id = update_msg.message_id
+    user_name = update_msg.from_user.name
+    msg_date = (update_msg.date).now().strftime("%Y-%m-%d %H:%M:%S")
+    # If message doesnt has text, check for caption fields (for no text msgs and resended ones)
+    text = getattr(update_msg, "text", None)
+    if text is None:
+        text = getattr(update_msg, "caption_html", None)
+    if text is None:
+        text = getattr(update_msg, "caption", None)
+    # Check if message has a text link (embedded url in text) and get it
+    msg_entities = getattr(update_msg, "entities", None)
+    if msg_entities is None:
+        msg_entities = []
+    for entity in msg_entities:
+        url = getattr(entity, "url", None)
+        if url is not None:
+            if url != "":
+                if text is None:
+                    text = url
+                else:
+                    text = "{} [{}]".format(text, url)
+                break
     enable = get_chat_config(chat_id, 'Antispam')
     time_for_allow_urls_h = get_chat_config(chat_id, 'Time_for_allow_urls_h')
     num_messages_for_allow_urls = get_chat_config(chat_id, 'Num_messages_for_allow_urls')
@@ -707,7 +739,7 @@ def msg_nocmd(update: Update, context: CallbackContext):
         user_data['Num_messages'] = user_data['Num_messages'] + 1
         update_user(chat_id, user_data)
         # If it is a text message
-        if text != None:
+        if text is not None:
             # If the user is not an Admin and the Bot Anti-Spam is enabled
             is_admin = user_is_admin(bot, user_id, chat_id)
             if (is_admin != True) and (enable == True):
@@ -725,7 +757,7 @@ def msg_nocmd(update: Update, context: CallbackContext):
                         t1 = mktime(msg_date_dateTime) # Date to epoch
                         user_hours_in_group = (t1 - t0)/3600
                         # If user is relatively new in the group or has not write enough msgs
-                        if ((user_hours_in_group < time_for_allow_urls_h) or 
+                        if ((user_hours_in_group < time_for_allow_urls_h) or \
                             (num_published_messages < num_messages_for_allow_urls + 1)):
                             debug_print("Spam message detected.\n  (Chat, User, Message) - " \
                                 "({}, {}, {}).".format(chat_id, user_name, user_id))
