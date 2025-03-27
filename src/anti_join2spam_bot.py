@@ -147,7 +147,7 @@ def initialize_resources():
     if not path.exists(CONST['DATA_DIR']):
         makedirs(CONST['DATA_DIR'])
     # Get allowed groups from persistent groups file
-    f_json_groups = TSjson.TSjson(CONST['F_GROUPS'])
+    f_json_groups = tsjson.TSjson(CONST['F_GROUPS'])
     groups_json = f_json_groups.read()
     if groups_json:
         if 'ID' in groups_json:
@@ -168,15 +168,15 @@ def initialize_resources():
             # Populate users files list
             file_path = '{}/{}/{}'.format(CONST['DATA_DIR'], f_chat_id, CONST['F_USERS'])
             files_users_list.append(OrderedDict([('ID', f_chat_id), \
-                ('File', TSjson.TSjson(file_path))]))
+                ('File', tsjson.TSjson(file_path))]))
             # Populate messages files list
             file_path = '{}/{}/{}'.format(CONST['DATA_DIR'], f_chat_id, CONST['F_MSG'])
             files_messages_list.append(OrderedDict([('ID', f_chat_id), \
-                ('File', TSjson.TSjson(file_path))]))
+                ('File', tsjson.TSjson(file_path))]))
             # Populate config files list
             file_path = '{}/{}/{}'.format(CONST['DATA_DIR'], f_chat_id, CONST['F_CONF'])
             files_config_list.append(OrderedDict([('ID', f_chat_id), \
-                ('File', TSjson.TSjson(file_path))]))
+                ('File', tsjson.TSjson(file_path))]))
             # Create default configuration file if it does not exists
             if not path.exists(file_path):
                 default_conf = get_default_config_data()
@@ -197,12 +197,12 @@ def get_chat_users_file(chat_id):
         if not found:
             chat_users_file_name = '{}/{}/{}'.format(CONST['DATA_DIR'], chat_id, CONST['F_USERS'])
             file['ID'] = chat_id
-            file['File'] = TSjson.TSjson(chat_users_file_name)
+            file['File'] = tsjson.TSjson(chat_users_file_name)
             files_users_list.append(file)
     else:
         chat_users_file_name = '{}/{}/{}'.format(CONST['DATA_DIR'], chat_id, CONST['F_USERS'])
         file['ID'] = chat_id
-        file['File'] = TSjson.TSjson(chat_users_file_name)
+        file['File'] = tsjson.TSjson(chat_users_file_name)
         files_users_list.append(file)
     return file['File']
 
@@ -219,11 +219,11 @@ def get_chat_messages_file(chat_id):
                 break
         if not found:
             chat_messages_file_name = '{}/{}/{}'.format(CONST['DATA_DIR'], chat_id, CONST['F_MSG'])
-            file['File'] = TSjson.TSjson(chat_messages_file_name)
+            file['File'] = tsjson.TSjson(chat_messages_file_name)
             files_messages_list.append(file)
     else:
         chat_messages_file_name = '{}/{}/{}'.format(CONST['DATA_DIR'], chat_id, CONST['F_MSG'])
-        file['File'] = TSjson.TSjson(chat_messages_file_name)
+        file['File'] = tsjson.TSjson(chat_messages_file_name)
         files_messages_list.append(file)
     return file['File']
 
@@ -241,12 +241,12 @@ def get_chat_config_file(chat_id):
         if not found:
             chat_config_file_name = '{}/{}/{}'.format(CONST['DATA_DIR'], chat_id, CONST['F_CONF'])
             file['ID'] = chat_id
-            file['File'] = TSjson.TSjson(chat_config_file_name)
+            file['File'] = tsjson.TSjson(chat_config_file_name)
             files_config_list.append(file)
     else:
         chat_config_file_name = '{}/{}/{}'.format(CONST['DATA_DIR'], chat_id, CONST['F_CONF'])
         file['ID'] = chat_id
-        file['File'] = TSjson.TSjson(chat_config_file_name)
+        file['File'] = tsjson.TSjson(chat_config_file_name)
         files_config_list.append(file)
     return file['File']
 
@@ -269,7 +269,7 @@ def get_default_config_data():
 
 def save_allowed_group(group_id):
     '''Store a new allowed group'''
-    f_json_groups = TSjson.TSjson(CONST['F_GROUPS'])
+    f_json_groups = tsjson.TSjson(CONST['F_GROUPS'])
     groups_json = f_json_groups.read()
     if groups_json:
         if 'ID' in groups_json:
