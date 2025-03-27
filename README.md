@@ -4,8 +4,6 @@ Telegram Bot that figths against Spammers who joins groups to spam their annoyin
 
 The Bot will watch for all new users that join a group and don't let them to publish messages containing links (URLs) until they have been in the group long as an specific time, and they have written an enough number of messages (configurable parameters).
 
--------------------------------------------------------------------------------------------------------------------------
-
 ## Donate
 
 Do you like this Bot? Buy me a coffee :)
@@ -26,21 +24,15 @@ Note: Use Python 3.6 or above to install and run the Bot, previous version are u
     sudo python3 -m pip install --upgrade setuptools
     ```
 
-2. Get the project and install JoinCaptchaBot requirements:
+2. Get and setup the project:
 
     ```bash
     git clone https://github.com/J-Rios/TLG_AntiJoin2SpamBot
-    sudo python3 -m pip install -r TLG_AntiJoin2SpamBot/requirements.txt
+    cd TLG_AntiJoin2SpamBot
+    make setup
     ```
 
-3. Go to project sources and give execution permission to usage scripts:
-
-    ```bash
-    cd TLG_AntiJoin2SpamBot/sources
-    chmod +x run status kill
-    ```
-
-4. Specify Telegram Bot account Token (get it from @BotFather) in "Constants.py" file:
+3. Specify Telegram Bot account Token (get it from @BotFather) in `src/constants.py` file:
 
     ```python
     'TOKEN' : 'XXXXXXXXX:XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX'
@@ -48,18 +40,23 @@ Note: Use Python 3.6 or above to install and run the Bot, previous version are u
 
 ## Usage
 
-To ease usage a `run`, `status`, and `kill` scripts have been provided.
+Launch the Bot:
 
-- Launch the Bot:  
-`./run`
+```bash
+make run
+```
 
-- Check if the script is running:  
-`./status`
+Check if the Bot is running:
 
-- Stop the Bot:  
-`./kill`
+```bash
+make status
+```
 
--------------------------------------------------------------------------------------------------------------------------
+- Stop the Bot:
+
+```bash
+make stop
+```
 
 ## Bot help
 
@@ -76,8 +73,6 @@ To ease usage a `run`, `status`, and `kill` scripts have been provided.
 - You can change the language that I speak, using the command /language.
 
 - Check /commands for get a list of all avaliable commands, and a short description of all of them.
-
--------------------------------------------------------------------------------------------------------------------------
 
 ## List of implemented commands
 
