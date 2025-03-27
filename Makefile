@@ -20,6 +20,7 @@ setup:
 
 run:
 	@ chmod +x $(TOOLS)/run
+	@ chmod +x $(TOOLS)/status
 	@ $(TOOLS)/run
 
 stop:
