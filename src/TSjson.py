@@ -2,7 +2,7 @@
 
 '''
 Script:
-    TSjson.py
+    tsjson.py
 Description:
     Thread-Safe json files read/write library.
 Author:

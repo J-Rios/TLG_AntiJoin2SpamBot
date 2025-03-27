@@ -4,7 +4,7 @@
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
 
 # Process ID
-PID=`ps -aux | grep -e "[A]nti_Join2Spam_Bot.py" | awk 'FNR == 1 {print $2}'`
+PID=`ps -aux | grep -e "[a]nti_join_to_spam_bot.py" | awk 'FNR == 1 {print $2}'`
 
 if [ -z "$PID" ]; then
     echo "Script is not running."

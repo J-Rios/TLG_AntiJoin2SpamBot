@@ -2,7 +2,7 @@
 
 '''
 Script:
-    Constants.py
+    constants.py
 Description:
     Constants values for Anti_Join2Spam_Bot.py.
 Author:
