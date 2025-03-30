@@ -18,10 +18,7 @@ Note: Use Python 3.6 or above to install and run the Bot, previous version are u
 1. Install Python3 and their tools:
 
     ```bash
-    sudo apt-get install python3
-    sudo apt-get install python3-pip
-    sudo python3 -m pip install --upgrade pip
-    sudo python3 -m pip install --upgrade setuptools
+    sudo apt-get install python3 python3-pip python3-venv
     ```
 
 2. Get and setup the project:
@@ -43,7 +40,7 @@ Note: Use Python 3.6 or above to install and run the Bot, previous version are u
 Launch the Bot:
 
 ```bash
-make run
+make start
 ```
 
 Check if the Bot is running:
@@ -72,7 +69,7 @@ make stop
 
 - You can change the language that I speak, using the command /language.
 
-- Check /commands for get a list of all avaliable commands, and a short description of all of them.
+- Check /commands for get a list of all available commands, and a short description of all of them.
 
 ## List of implemented commands
 
@@ -105,11 +102,3 @@ make stop
 /version - Show the version of the Bot.
 
 /about - Show about info.
-
--------------------------------------------------------------------------------------------------------------------------
-
-## Notes
-
-- This Bot uses [python-telegram-bot](https://github.com/python-telegram-bot/python-telegram-bot) library.
-
-- Minimal Python version 3.6.
